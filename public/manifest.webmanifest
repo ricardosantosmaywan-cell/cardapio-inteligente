@@ -1,0 +1,9 @@
+{
+  "name": "Cardápio por Mesa",
+  "short_name": "Cardápio",
+  "start_url": "/garcom",
+  "display": "standalone",
+  "background_color": "#faf6f1",
+  "theme_color": "#c8472b",
+  "icons": []
+}
