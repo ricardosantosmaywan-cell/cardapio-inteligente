@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDB, useTick } from "@/lib/store";
+import { TableIcon } from "@/components/ui";
 import { ago, beep, eur, openSession, sessionTotal, tableState } from "@/lib/utils";
 
 const LABEL = { livre: "Livre", ocupada: "Ocupada", conta: "Pediu a conta", chamou: "Chamou o garçom" } as const;
@@ -63,6 +64,7 @@ export default function Mesas() {
           const novosMesa = s ? novos.filter((o) => o.sessionId === s.id).length : 0;
           return (
             <Link key={t.id} href={`/garcom/mesa/${t.id}`} className={`card table-card ${st}`}>
+              <TableIcon name={t.name} state={st} guests={guests.length} />
               <div className="row between">
                 <h2>{t.name}</h2>
                 <span className={`badge ${BADGE[st]}`}>{LABEL[st]}</span>
@@ -82,7 +84,7 @@ export default function Mesas() {
                   </div>
                 </>
               ) : (
-                <div className="muted small" style={{ marginTop: "auto" }}>Sem clientes</div>
+                <div className="muted small" style={{ marginTop: "auto" }}>Livre · sem clientes</div>
               )}
             </Link>
           );

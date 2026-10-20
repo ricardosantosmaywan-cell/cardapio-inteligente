@@ -59,3 +59,33 @@ export function Qr({ value }: { value: string }) {
 
 export const mesaUrl = (token: string) =>
   typeof window === "undefined" ? `/mesa/${token}` : `${window.location.origin}/mesa/${token}`;
+
+/** Mesa vista de cima, com uma cadeira por cliente aprovado (até 6). */
+export function TableIcon({ name, state, guests }: { name: string; state: "livre" | "ocupada" | "conta" | "chamou"; guests: number }) {
+  const bar = /balc/i.test(name);
+  const color = { livre: "var(--muted)", ocupada: "var(--info)", conta: "var(--warn)", chamou: "var(--bad)" }[state];
+  const n = Math.min(guests, 6);
+  const num = name.match(/\d+/)?.[0];
+  const label = bar ? "🍸" : num ?? name.slice(0, 2).toUpperCase();
+  // posições das cadeiras (viewBox 120x100): 3 em cima, 3 em baixo
+  const seats = bar
+    ? [[20, 80], [38, 80], [56, 80], [74, 80], [92, 80], [110, 80]]
+    : [[36, 11], [84, 11], [60, 11], [36, 89], [84, 89], [60, 89]];
+  const order = bar ? [0, 1, 2, 3, 4, 5] : [0, 3, 1, 4, 2, 5];
+  const sw = bar ? 14 : 18;
+  return (
+    <svg viewBox="0 0 120 100" className={`table-icon ${state}`} role="img" aria-label={`${name}, ${guests} cliente(s)`}>
+      {order.map((idx, k) => {
+        const [cx, cy] = seats[idx];
+        const taken = k < n;
+        return <rect key={k} x={cx - sw / 2} y={cy - 6} width={sw} height="12" rx="5" fill={taken ? color : "none"} stroke={color} strokeWidth="2" opacity={taken ? 1 : 0.4} />;
+      })}
+      {bar ? (
+        <rect x="8" y="26" width="104" height="36" rx="10" fill="var(--card)" stroke={color} strokeWidth="3" />
+      ) : (
+        <rect x="22" y="22" width="76" height="56" rx="14" fill="var(--card)" stroke={color} strokeWidth="3" />
+      )}
+      <text x="60" y={bar ? 52 : 57} textAnchor="middle" fontSize={bar ? 22 : 26} fontWeight="800" fill={color}>{label}</text>
+    </svg>
+  );
+}

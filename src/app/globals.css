@@ -214,9 +214,12 @@ button { cursor: pointer; }
 .navlink { min-height: 40px; padding: 0 14px; border-radius: 10px; display: inline-flex; align-items: center; font-weight: 600; color: var(--muted); }
 .navlink.on { background: var(--ink); color: var(--bg); }
 .grid { display: grid; gap: 12px; }
-.grid.tables { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.grid.tables { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .grid.two { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-.table-card { display: flex; flex-direction: column; gap: 8px; border-left: 6px solid var(--line); min-height: 130px; }
+.table-icon { width: 100%; max-width: 150px; height: auto; align-self: center; }
+.table-icon.chamou, .table-icon.conta { animation: wiggle 2.4s ease-in-out infinite; }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(1.5deg); } }
+.table-card { display: flex; flex-direction: column; gap: 8px; border-left: 6px solid var(--line); min-height: 220px; }
 .table-card.ocupada { border-left-color: var(--info); }
 .table-card.conta { border-left-color: var(--warn); background: var(--warn-soft); }
 .table-card.chamou { border-left-color: var(--bad); }
