@@ -5,7 +5,7 @@ import {
   callWaiter, CartLine, decideGuest, getGuestId, joinTable, requestBill, sendOrder, useDB, useTick,
 } from "@/lib/store";
 import { ClientOnly, ProductThumb, Thumb, useToast } from "@/components/ui";
-import { eur, hhmm, offerLive, orderTotal, sessionTotal } from "@/lib/utils";
+import { eur, hhmm, itemDelivered, offerLive, orderTotal, sessionTotal } from "@/lib/utils";
 
 const STATUS_LABEL = { enviado: "Enviado", visto: "Visto pelo garçom", entregue: "Entregue" } as const;
 
@@ -90,6 +90,17 @@ function Customer() {
     );
   }
 
+  if (guest.status === "recusado") {
+    return (
+      <div className="screen-center center">
+        <div className="big-emoji">✋</div>
+        <h1>Entrada não aprovada</h1>
+        <p className="muted">Fale com o garçom se achar que é um engano.</p>
+        <button className="btn block" onClick={reset}>Tentar outra vez</button>
+      </div>
+    );
+  }
+
   /* ---------- Sessão encerrada (C11) ---------- */
   if (session.closedAt) {
     return (
@@ -107,24 +118,13 @@ function Customer() {
     return (
       <div className="screen-center center">
         <div className="big-emoji">⏳</div>
-        <h1>A aguardar aprovação</h1>
+        <h1>A aguardar o garçom</h1>
         <p className="muted">
-          A {table.name} já tem uma conta aberta. O garçom ou alguém da mesa vai aprovar a sua entrada.
+          O garçom vai confirmar que está na {table.name}. Assim que aprovar, já pode fazer o seu pedido.
         </p>
       </div>
     );
   }
-  if (guest.status === "recusado") {
-    return (
-      <div className="screen-center center">
-        <div className="big-emoji">✋</div>
-        <h1>Entrada não aprovada</h1>
-        <p className="muted">Fale com o garçom se achar que é um engano.</p>
-        <button className="btn block" onClick={reset}>Tentar outra vez</button>
-      </div>
-    );
-  }
-
   /* ---------- App da mesa ---------- */
   const total = sessionTotal(db, session.id);
   const orders = db.orders.filter((o) => o.sessionId === session.id).sort((a, b) => b.createdAt - a.createdAt);
@@ -313,7 +313,7 @@ function Customer() {
                 </div>
                 {o.items.map((i) => (
                   <div key={i.id} className={`line${i.cancelled ? " cancelled" : ""}`}>
-                    <span>{i.qty}× {i.name}{i.cancelled && " (cancelado)"}</span>
+                    <span>{i.qty}× {i.name}{i.cancelled ? " (cancelado)" : itemDelivered(o, i) ? " ✓" : ""}</span>
                     <span>{eur(i.price * i.qty)}</span>
                   </div>
                 ))}

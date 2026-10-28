@@ -3,10 +3,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
-  cancelItem, closeTable, decideGuest, dismissCall, openTableSession, renewQr, sendOrder, setOrderStatus, useDB, useTick,
+  cancelItem, closeTable, decideGuest, dismissCall, openTableSession, renewQr, sendOrder, setItemDelivered, setOrderStatus, useDB, useTick,
 } from "@/lib/store";
 import { Modal, ProductThumb, useToast } from "@/components/ui";
-import { ago, eur, hhmm, openSession, orderTotal, sessionTotal, tableState } from "@/lib/utils";
+import { ago, eur, hhmm, itemDelivered, openSession, orderTotal, sessionTotal, tableState } from "@/lib/utils";
 
 const STATUS = { enviado: "Enviado", visto: "Visto", entregue: "Entregue" } as const;
 
@@ -17,6 +17,7 @@ export default function DetalheMesa() {
   const toast = useToast();
   const [launch, setLaunch] = useState(false);
   const [confirm, setConfirm] = useState<"fechar" | "qr" | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ orderId: string; itemId: string; name: string } | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
@@ -55,7 +56,7 @@ export default function DetalheMesa() {
 
       {!session && (
         <div className="card stack center">
-          <p className="muted">A mesa está livre. O primeiro cliente que ler o QR abre a conta, ou abra‑a você para lançar pedidos.</p>
+          <p className="muted">A mesa está livre. Quem ler o QR aparece aqui para você aprovar, ou abra a mesa você para lançar pedidos.</p>
           <button className="btn primary" style={{ alignSelf: "center" }} onClick={() => openTableSession(table.id)}>Abrir mesa</button>
         </div>
       )}
@@ -102,24 +103,36 @@ export default function DetalheMesa() {
                   <span className={`badge ${o.status === "entregue" ? "ok" : o.status === "visto" ? "info" : "warn"}`}>{STATUS[o.status]}</span>
                 </div>
                 <div>
-                  {o.items.map((i) => (
-                    <div key={i.id} className={`line${i.cancelled ? " cancelled" : ""}`}>
-                      <span>{i.qty}× {i.name}</span>
-                      <span className="row">
-                        {eur(i.price * i.qty)}
-                        {!i.cancelled && o.status !== "entregue" && (
-                          <button className="btn sm danger" onClick={() => cancelItem(o.id, i.id)} aria-label={`Cancelar ${i.name}`}>✕</button>
-                        )}
-                      </span>
-                    </div>
-                  ))}
+                  {o.items.map((i) => {
+                    const done = itemDelivered(o, i);
+                    return (
+                      <div key={i.id} className={`line${i.cancelled ? " cancelled" : ""}`}>
+                        <span>{i.qty}× {i.name}{i.cancelled && " (cancelado)"}</span>
+                        <span className="row">
+                          {eur(i.price * i.qty)}
+                          {!i.cancelled && (
+                            <button
+                              className={`btn sm ${done ? "ok" : ""}`}
+                              onClick={() => setItemDelivered(o.id, i.id, !done)}
+                              aria-label={done ? `Desmarcar entrega de ${i.name}` : `Marcar ${i.name} como entregue`}
+                            >
+                              {done ? "✓ Entregue" : "Entregar"}
+                            </button>
+                          )}
+                          {!i.cancelled && !done && (
+                            <button className="btn sm danger" onClick={() => setCancelTarget({ orderId: o.id, itemId: i.id, name: i.name })} aria-label={`Cancelar ${i.name}`}>✕</button>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 {o.note && <div className="alert warn small">📝 {o.note}</div>}
                 <div className="row between">
                   <b>{eur(orderTotal(o))}</b>
                   <span className="row">
                     {o.status === "enviado" && <button className="btn sm primary" onClick={() => setOrderStatus(o.id, "visto")}>Marcar visto</button>}
-                    {o.status !== "entregue" && <button className="btn sm ok" onClick={() => setOrderStatus(o.id, "entregue")}>Entregue</button>}
+                    {o.items.some((i) => !i.cancelled && !itemDelivered(o, i)) && <button className="btn sm ok" onClick={() => setOrderStatus(o.id, "entregue")}>Entregar tudo</button>}
                   </span>
                 </div>
               </div>
@@ -180,6 +193,16 @@ export default function DetalheMesa() {
           <div className="row">
             <button className="btn grow" onClick={() => setConfirm(null)}>Cancelar</button>
             <button className="btn primary grow" onClick={() => { closeTable(table.id); setConfirm(null); }}>Fechar mesa</button>
+          </div>
+        </Modal>
+      )}
+      {cancelTarget && (
+        <Modal title="Cancelar item" onClose={() => setCancelTarget(null)}>
+          <p>Tens certeza que queres cancelar <b>{cancelTarget.name}</b>?</p>
+          <p className="muted small">O item sai da conta da mesa e o cliente vê “cancelado”.</p>
+          <div className="row">
+            <button className="btn grow" onClick={() => setCancelTarget(null)}>Não, manter</button>
+            <button className="btn danger grow" onClick={() => { cancelItem(cancelTarget.orderId, cancelTarget.itemId); setCancelTarget(null); toast.show("Item cancelado"); }}>Sim, cancelar</button>
           </div>
         </Modal>
       )}

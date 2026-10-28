@@ -1,4 +1,4 @@
-import type { DB, Offer, Order, Session, Table, TableState } from "./types";
+import type { DB, Offer, Order, OrderItem, Session, Table, TableState } from "./types";
 
 export const eur = (cents: number) =>
   new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -121,3 +121,6 @@ export function compressImage(file: File, max = 640): Promise<string> {
 
 export const parseEuro = (s: string) => Math.round(parseFloat(s.replace(",", ".")) * 100);
 export const toEuroInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+
+/** Pedidos antigos só tinham o estado do pedido inteiro. */
+export const itemDelivered = (o: Order, i: OrderItem) => i.delivered ?? o.status === "entregue";

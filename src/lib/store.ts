@@ -3,7 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { makeSeed, SEED_VERSION } from "./seed";
 import type { DB, Guest, Order, OrderItem, Product } from "./types";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { offerLive, openSession, token, uid, withIds } from "./utils";
+import { itemDelivered, offerLive, openSession, token, uid, withIds } from "./utils";
 
 /**
  * Base de dados. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos, todo o estado
@@ -240,13 +240,12 @@ export function joinTable(tableToken: string, name: string, phone?: string): str
     const table = db.tables.find((t) => t.token === tableToken);
     if (!table) return;
     let session = openSession(db, table.id);
-    let status: Guest["status"] = "pendente";
+    const status: Guest["status"] = "pendente"; // o garçom confirma sempre que há alguém na mesa
     if (!session) {
       session = { id: uid("s"), tableId: table.id, openedAt: Date.now() };
       db.sessions.push(session);
       table.billRequestedAt = undefined;
       table.calledAt = undefined;
-      status = "aprovado"; // o primeiro QR lido abre a sessão
     }
     guestId = uid("g");
     db.guests.push({ id: guestId, sessionId: session.id, name, phone: phone || undefined, status });
@@ -324,22 +323,58 @@ export const dismissCall = (tableId: string) =>
     if (t) t.calledAt = undefined;
   });
 
+/** O pedido fica "entregue" quando todos os itens ativos foram entregues. */
+function syncOrderStatus(o: Order) {
+  const active = o.items.filter((i) => !i.cancelled);
+  const all = active.length > 0 && active.every((i) => i.delivered);
+  if (all) o.status = "entregue";
+  else if (o.status === "entregue" || (o.status === "enviado" && active.some((i) => i.delivered))) o.status = "visto";
+}
+
+const materializeDelivered = (o: Order) => {
+  const was = o.status === "entregue";
+  for (const i of o.items) if (i.delivered === undefined) i.delivered = was;
+};
+
 export const setOrderStatus = (orderId: string, status: Order["status"]) =>
   mutate((db) => {
     const o = db.orders.find((x) => x.id === orderId);
-    if (o) o.status = status;
+    if (!o) return;
+    if (status === "entregue") {
+      for (const i of o.items) if (!i.cancelled) i.delivered = true;
+      syncOrderStatus(o);
+    } else o.status = status;
+  });
+
+export const setItemDelivered = (orderId: string, itemId: string, delivered: boolean) =>
+  mutate((db) => {
+    const o = db.orders.find((x) => x.id === orderId);
+    const it = o?.items.find((i) => i.id === itemId);
+    if (!o || !it) return;
+    materializeDelivered(o);
+    it.delivered = delivered;
+    syncOrderStatus(o);
   });
 
 export const cancelItem = (orderId: string, itemId: string) =>
   mutate((db) => {
-    const it = db.orders.find((x) => x.id === orderId)?.items.find((i) => i.id === itemId);
-    if (it) it.cancelled = true;
+    const o = db.orders.find((x) => x.id === orderId);
+    const it = o?.items.find((i) => i.id === itemId);
+    if (!o || !it || itemDelivered(o, it)) return; // item já entregue não se cancela
+    materializeDelivered(o);
+    it.cancelled = true;
+    syncOrderStatus(o);
   });
 
 export const decideGuest = (guestId: string, approve: boolean) =>
   mutate((db) => {
     const g = db.guests.find((x) => x.id === guestId);
-    if (g) g.status = approve ? "aprovado" : "recusado";
+    if (!g) return;
+    g.status = approve ? "aprovado" : "recusado";
+    // Recusou o único a entrar numa mesa vazia: a mesa volta a ficar livre.
+    const sess = db.sessions.find((x) => x.id === g.sessionId);
+    const vazia = !db.guests.some((x) => x.sessionId === g.sessionId && x.status !== "recusado") && !db.orders.some((o) => o.sessionId === g.sessionId);
+    if (!approve && sess && !sess.closedAt && vazia) sess.closedAt = Date.now();
   });
 
 export const openTableSession = (tableId: string) =>

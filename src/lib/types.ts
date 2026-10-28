@@ -53,6 +53,7 @@ export type OrderItem = {
   price: number;
   qty: number;
   cancelled: boolean;
+  delivered?: boolean; // entregue à mesa (item a item)
 };
 
 export type Order = {

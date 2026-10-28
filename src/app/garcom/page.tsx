@@ -17,13 +17,18 @@ export default function Mesas() {
     .filter((o) => o.status === "enviado" && openIds.has(o.sessionId))
     .sort((a, b) => a.createdAt - b.createdAt);
 
-  // Som discreto quando chega pedido novo (G3).
+  const entrando = db.guests
+    .filter((g) => g.status === "pendente" && openIds.has(g.sessionId))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  // Som discreto quando chega pedido novo ou alguém pede para entrar (G3).
   const prev = useRef<number | null>(null);
   const [sound, setSound] = useState(true);
+  const avisos = novos.length + entrando.length;
   useEffect(() => {
-    if (prev.current !== null && novos.length > prev.current && sound) beep();
-    prev.current = novos.length;
-  }, [novos.length, sound]);
+    if (prev.current !== null && avisos > prev.current && sound) beep();
+    prev.current = avisos;
+  }, [avisos, sound]);
 
   const tableOf = (sessionId: string) => {
     const s = db.sessions.find((x) => x.id === sessionId);
@@ -38,6 +43,22 @@ export default function Mesas() {
           <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} /> Som de aviso
         </label>
       </div>
+
+      {entrando.length > 0 && (
+        <div className="banner" role="alert">
+          <div>
+            <b>🙋 {entrando.length} {entrando.length === 1 ? "cliente quer entrar" : "clientes querem entrar"}</b>
+            <div className="small">
+              {entrando.slice(0, 3).map((g) => `${tableOf(g.sessionId)?.name} · ${g.name}`).join("  |  ")}
+            </div>
+          </div>
+          {tableOf(entrando[0].sessionId) && (
+            <Link href={`/garcom/mesa/${tableOf(entrando[0].sessionId)!.id}`} className="btn sm">
+              Ver mesa
+            </Link>
+          )}
+        </div>
+      )}
 
       {novos.length > 0 && (
         <div className="banner" role="alert">
