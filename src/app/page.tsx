@@ -10,11 +10,12 @@ function Hub() {
   const db = useDB();
   useTick();
   return (
+    <div className="hub-bg">
     <main className="hub">
-      <header className="stack">
+      <header className="hub-hero stack">
         <span className="badge brand" style={{ alignSelf: "flex-start" }}>DEMO · dados de demonstração</span>
         <h1>🍽️ {db.establishment.name} — Cardápio por Mesa</h1>
-        <p className="muted">
+        <p>
           Abra cada perfil numa aba ou janela diferente. Tudo sincroniza em tempo real entre as abas: peça no
           “telemóvel”, veja chegar no “tablet do garçom” e edite o cardápio no “painel do dono”.
         </p>
@@ -74,6 +75,7 @@ function Hub() {
         </div>
       </section>
     </main>
+    </div>
   );
 }
 

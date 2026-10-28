@@ -2,21 +2,109 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { makeSeed, SEED_VERSION } from "./seed";
 import type { DB, Guest, Order, OrderItem, Product } from "./types";
-import { offerLive, openSession, token, uid } from "./utils";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { offerLive, openSession, token, uid, withIds } from "./utils";
 
 /**
- * Base de dados mock. Vive no localStorage e sincroniza entre abas pelo evento
- * "storage", o que permite mostrar telemóvel, tablet e gestão ao mesmo tempo
- * em abas diferentes. Quando houver Supabase, só este ficheiro muda.
+ * Base de dados. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos, todo o estado
+ * vive numa linha da tabela `app_state` (ver supabase/schema.sql) e sincroniza
+ * entre aparelhos por Realtime. Sem elas, cai para o localStorage (demo local,
+ * sincronizada só entre abas do mesmo navegador).
  */
 const KEY = "cardapio-mock-db-v1";
+const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const REMOTE = !!(SB_URL && SB_KEY);
 
 let cache: DB | null = null;
 let cacheRaw: string | null = null;
 const listeners = new Set<() => void>();
 const serverSeed = makeSeed();
 
+/* ---------- Supabase ---------- */
+
+const ROW = "main";
+let sb: SupabaseClient | null = null;
+let remoteData: DB | null = null;
+let remoteVersion = -1;
+let pending = 0;
+let queue: Promise<unknown> = Promise.resolve();
+let ready: Promise<void> | null = null;
+
+const notify = () => listeners.forEach((l) => l());
+
+function takeRemote(data: DB, version: number) {
+  if (version <= remoteVersion) return;
+  remoteData = data;
+  remoteVersion = version;
+  if (!pending) {
+    cache = data;
+    notify();
+  }
+}
+
+async function fetchRemote() {
+  const { data, error } = await sb!.from("app_state").select("data,version").eq("id", ROW).maybeSingle();
+  if (error) throw error;
+  return data as { data: DB; version: number } | null;
+}
+
+function startRemote() {
+  if (ready || typeof window === "undefined") return;
+  sb = createClient(SB_URL!, SB_KEY!);
+  ready = (async () => {
+    let row = await fetchRemote();
+    if (!row || row.data.version !== SEED_VERSION) {
+      const seed = makeSeed();
+      if (!row) {
+        await sb!.from("app_state").upsert({ id: ROW, data: seed, version: 0 }, { onConflict: "id", ignoreDuplicates: true });
+      } else {
+        await sb!.from("app_state").update({ data: seed, version: row.version + 1 }).eq("id", ROW).eq("version", row.version);
+      }
+      row = await fetchRemote();
+    }
+    if (row) takeRemote(row.data, row.version);
+    sb!
+      .channel("app_state")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state" }, (p) => {
+        const r = p.new as { data: DB; version: number };
+        takeRemote(r.data, r.version);
+      })
+      .subscribe();
+    // rede de segurança caso o Realtime não esteja ativo
+    setInterval(() => fetchRemote().then((r) => r && takeRemote(r.data, r.version)).catch(() => {}), 4000);
+  })();
+  ready.catch((e) => console.error("Supabase:", e));
+}
+
+async function push(fn: (db: DB) => void, ids: string[]) {
+  await ready;
+  for (let i = 0; i < 8; i++) {
+    const next = structuredClone(remoteData!);
+    withIds(null, ids, () => fn(next));
+    const { data, error } = await sb!
+      .from("app_state")
+      .update({ data: next, version: remoteVersion + 1 })
+      .eq("id", ROW)
+      .eq("version", remoteVersion)
+      .select("version");
+    if (error) throw error;
+    if (data?.length) {
+      remoteData = next;
+      remoteVersion += 1;
+      return;
+    }
+    const row = await fetchRemote(); // outro aparelho escreveu primeiro: refaz sobre o estado novo
+    if (row) {
+      remoteData = row.data;
+      remoteVersion = row.version;
+    }
+  }
+  throw new Error("Conflito de escrita repetido");
+}
+
 function read(): DB {
+  if (REMOTE) return cache ?? (cache = serverSeed);
   if (typeof window === "undefined") return serverSeed;
   let raw: string | null = null;
   try {
@@ -55,6 +143,12 @@ function write(db: DB) {
 
 function subscribe(cb: () => void) {
   listeners.add(cb);
+  if (REMOTE) {
+    startRemote();
+    return () => {
+      listeners.delete(cb);
+    };
+  }
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY) cb();
   };
@@ -70,12 +164,37 @@ export function useDB(): DB {
 }
 
 export function mutate(fn: (db: DB) => void) {
+  if (REMOTE) {
+    startRemote();
+    const ids: string[] = [];
+    const next = structuredClone(read());
+    withIds(ids, null, () => fn(next));
+    cache = next; // otimista: o ecrã responde já
+    notify();
+    pending++;
+    queue = queue
+      .then(() => push(fn, ids))
+      .catch((e) => console.error("Supabase:", e))
+      .finally(() => {
+        pending--;
+        if (!pending && remoteData) {
+          cache = remoteData;
+          notify();
+        }
+      });
+    return;
+  }
   const next = structuredClone(read());
   fn(next);
   write(next);
 }
 
 export function resetDemo() {
+  if (REMOTE) {
+    const seed = makeSeed();
+    mutate((db) => Object.assign(db, seed));
+    return;
+  }
   write(makeSeed());
 }
 

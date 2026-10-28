@@ -3,12 +3,38 @@ import type { DB, Offer, Order, Session, Table, TableState } from "./types";
 export const eur = (cents: number) =>
   new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(cents / 100);
 
-export const uid = (p = "id") => `${p}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
+/**
+ * Ids e tokens são gerados uma vez e repetidos se uma escrita no Supabase tiver
+ * de ser refeita (conflito de versão), para o id devolvido ao cliente continuar válido.
+ */
+const ids: { record: string[] | null; replay: string[] | null } = { record: null, replay: null };
+export function withIds<T>(record: string[] | null, replay: string[] | null, f: () => T): T {
+  const prev = { ...ids };
+  ids.record = record;
+  ids.replay = replay ? [...replay] : null;
+  try {
+    return f();
+  } finally {
+    ids.record = prev.record;
+    ids.replay = prev.replay;
+  }
+}
+const stable = (gen: () => string) => {
+  if (ids.replay?.length) return ids.replay.shift()!;
+  const v = gen();
+  ids.record?.push(v);
+  return v;
+};
+
+export const uid = (p = "id") =>
+  stable(() => `${p}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`);
 
 export const token = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(18)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  stable(() =>
+    Array.from(crypto.getRandomValues(new Uint8Array(18)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join(""),
+  );
 
 export const hhmm = (ts: number) =>
   new Date(ts).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });

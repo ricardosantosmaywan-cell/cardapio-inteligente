@@ -255,3 +255,39 @@ table.data th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0
   .print-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .print-card { break-inside: avoid; border: 2px solid #000; text-align: center; padding: 24px; }
 }
+
+/* ---------- Página inicial: ambiente de restaurante ---------- */
+.hub-bg {
+  --bg: #faf6f1;
+  --card: #ffffff;
+  --ink: #2a211c;
+  --muted: #7a6c63;
+  --line: #eadfd4;
+  --brand: #c8472b;
+  --brand-ink: #ffffff;
+  --brand-soft: #fbe6df;
+  --info: #2b6cb0;
+  --info-soft: #e1edfa;
+  --warn: #b7791f;
+  --warn-soft: #fdf0d2;
+  --bad: #b3261e;
+  --bad-soft: #fbe1de;
+  --shadow: 0 1px 2px rgba(42, 33, 28, 0.08), 0 6px 18px rgba(42, 33, 28, 0.1);
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    linear-gradient(rgba(250, 246, 241, 0.86), rgba(250, 246, 241, 0.86)),
+    repeating-linear-gradient(0deg, rgba(200, 71, 43, 0.28) 0 28px, transparent 28px 56px),
+    repeating-linear-gradient(90deg, rgba(200, 71, 43, 0.28) 0 28px, transparent 28px 56px),
+    #fffaf3;
+}
+.hub-bg .hub-hero {
+  background: linear-gradient(135deg, #c8472b, #e58a3a);
+  color: #fff;
+  border-radius: 20px;
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+}
+.hub-bg .hub-hero h1 { font-size: 1.8rem; }
+.hub-bg .hub-hero p { opacity: 0.95; }
+.hub-bg .hub-hero .badge { background: rgba(0, 0, 0, 0.25); color: #fff; }
