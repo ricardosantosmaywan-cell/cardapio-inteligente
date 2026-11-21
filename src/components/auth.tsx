@@ -60,7 +60,7 @@ function useAuth(slug: string): Auth & { signOut: () => void } {
     return () => sub?.data.subscription.unsubscribe();
   }, [refresh]);
 
-  return { ...auth, signOut: () => void getSupabase()?.auth.signOut() };
+  return { ...auth, signOut: () => void getSupabase()?.auth.signOut({ scope: "local" }) };
 }
 
 function RealLogin({ area, base }: { area: Role; base: string }) {

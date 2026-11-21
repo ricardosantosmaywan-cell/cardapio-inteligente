@@ -1,7 +1,7 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { PackageOpen, RefreshCw, WifiOff, X } from "lucide-react";
+import { Copy, PackageOpen, RefreshCw, WifiOff, X } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { useMounted } from "@/lib/store";
 
@@ -49,6 +49,16 @@ export function ErrorState({ title = "Não foi possível carregar", hint = "Veri
       <div className="empty-title">{title}</div>
       <p className="small">{hint}</p>
       {onRetry && <button className="btn" onClick={onRetry}><RefreshCw className="icon" size={17} aria-hidden="true" />Tentar de novo</button>}
+    </div>
+  );
+}
+
+/** Valor numa caixa com botão Copiar (senhas temporárias, links). */
+export function Copiavel({ valor, copia, onCopiar, label }: { valor: string; copia?: string; onCopiar: (t: string) => void; label: string }) {
+  return (
+    <div className="row" style={{ background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: "6px 6px 6px 14px" }}>
+      <code className="grow" style={{ background: "transparent", fontSize: "0.95rem", wordBreak: "break-all" }}>{valor}</code>
+      <button className="btn sm" onClick={() => onCopiar(copia ?? valor)} aria-label={`Copiar ${label}`}><Copy className="icon" size={16} aria-hidden="true" />Copiar</button>
     </div>
   );
 }

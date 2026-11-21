@@ -13,6 +13,7 @@ export default function DonoLayout({ children }: { children: React.ReactNode }) 
           { href: "/dono/ofertas", label: "Ofertas do dia" },
           { href: "/dono/mesas", label: "Mesas e QR" },
           { href: "/dono/relatorio", label: "Relatório" },
+          { href: "/dono/equipe", label: "Equipe" },
           { href: "/garcom", label: "Área do garçom ↗" },
         ]}
       >
