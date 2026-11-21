@@ -7,10 +7,13 @@ import { getSupabase, REMOTE } from "./supabase";
 import { itemDelivered, offerLive, openSession, token, uid, withIds } from "./utils";
 
 /**
- * Base de dados, por loja. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos, o estado
- * de cada loja vive numa linha da tabela `app_state` (id = slug da loja, ver
- * supabase/schema-multiloja.sql) e sincroniza entre aparelhos por Realtime.
- * Sem elas, cai para o localStorage (demo local, sincronizada só entre abas).
+ * Base de dados, por loja. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos há duas camadas:
+ *  - PÚBLICA: o cardápio (nome, categorias, produtos, ofertas), na tabela `cardapio_publico`,
+ *    que qualquer pessoa lê. É o que o cliente à mesa vê.
+ *  - EQUIPE: o estado completo (mesas, clientes, celulares, pedidos), na tabela `app_state`,
+ *    que só o dono e o garçom da loja leem e alteram, com login (ver supabase/schema-multiloja.sql).
+ * O cliente à mesa NÃO usa `app_state`: age por funções no servidor (ver ./mesa.ts).
+ * Sem as variáveis, cai para o localStorage (demo local, sincronizada só entre abas).
  *
  * A loja é escolhida por `configureStore(slug)`, chamado pelo layout /l/[slug].
  * As lojas são criadas só pelo /admin: esta camada nunca cria nem repõe linhas.
@@ -31,7 +34,12 @@ const serverSeed = makeSeed();
 
 let sb: SupabaseClient | null = null;
 let chan: RealtimeChannel | null = null;
-let poll: ReturnType<typeof setInterval> | null = null;
+let poll: ReturnType<typeof setInterval> | null = null; // equipe: rede de segurança do Realtime
+let pubPoll: ReturnType<typeof setInterval> | null = null; // público: atualiza o cardápio
+let authSub: { unsubscribe: () => void } | null = null;
+let mode: "public" | "staff" = "public"; // "staff" = tem sessão e é da equipe desta loja
+let pubDB: DB | null = null;
+let pubVersion = -1;
 let remoteData: DB | null = null;
 let remoteVersion = -1;
 let pending = 0;
@@ -43,15 +51,19 @@ const notify = () => listeners.forEach((l) => l());
 /** Escolhe a loja. Se mudar de loja, limpa tudo o que era da anterior. */
 export function configureStore(slug: string) {
   if (slug === STORE) return;
-  if (chan && sb) sb.removeChannel(chan);
-  if (poll) clearInterval(poll);
-  chan = null;
-  poll = null;
+  detachStaff();
+  if (pubPoll) clearInterval(pubPoll);
+  authSub?.unsubscribe();
+  pubPoll = null;
+  authSub = null;
   STORE = slug;
   ROW = slug;
   KEY = `cardapio-db-${slug}`;
   cache = null;
   cacheRaw = null;
+  mode = "public";
+  pubDB = null;
+  pubVersion = -1;
   remoteData = null;
   remoteVersion = -1;
   pending = 0;
@@ -72,10 +84,78 @@ function takeRemote(data: DB, version: number) {
   }
 }
 
+/** Estado completo da loja: só devolve linha se o utilizador for da equipe (a base de dados esconde-a aos outros). */
 async function fetchRemote() {
   const { data, error } = await sb!.from("app_state").select("data,version").eq("id", ROW).maybeSingle();
   if (error) throw error;
   return data as { data: DB; version: number } | null;
+}
+
+/** Cardápio público: qualquer pessoa lê (enquanto a loja estiver ativa). */
+async function fetchPublic() {
+  const { data, error } = await sb!.from("cardapio_publico").select("data,version").eq("id", ROW).maybeSingle();
+  if (error) throw error;
+  return data as { data: DB; version: number } | null;
+}
+
+/** Sem acesso de equipe, o ecrã vê só o cardápio; as listas privadas ficam vazias. */
+const composePublic = (d: DB): DB => ({ ...d, tables: [], sessions: [], guests: [], orders: [] });
+
+function takePublic(d: DB, version: number) {
+  if (version <= pubVersion) return;
+  pubVersion = version;
+  pubDB = composePublic(d);
+  if (mode === "public") {
+    cache = pubDB;
+    notify();
+  }
+}
+
+function detachStaff() {
+  if (chan && sb) sb.removeChannel(chan);
+  if (poll) clearInterval(poll);
+  chan = null;
+  poll = null;
+}
+
+/** Se há sessão e o utilizador é da equipe desta loja, passa ao estado completo (com Realtime). */
+async function attachStaff(row: string) {
+  detachStaff();
+  const { data: s } = await sb!.auth.getSession();
+  if (row !== ROW) return;
+  let full: { data: DB; version: number } | null = null;
+  if (s.session) {
+    try {
+      full = await fetchRemote();
+    } catch {
+      full = null;
+    }
+  }
+  if (row !== ROW) return;
+  if (!full) {
+    mode = "public";
+    remoteData = null;
+    remoteVersion = -1;
+    if (pubDB) {
+      cache = pubDB;
+      notify();
+    }
+    return;
+  }
+  mode = "staff";
+  remoteData = full.data;
+  remoteVersion = full.version;
+  cache = full.data;
+  notify();
+  chan = sb!
+    .channel(`loja-${row}`)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.${row}` }, (p) => {
+      const r = p.new as { data: DB; version: number };
+      takeRemote(r.data, r.version);
+    })
+    .subscribe();
+  // rede de segurança caso o Realtime não esteja ativo
+  poll = setInterval(() => fetchRemote().then((r) => r && row === ROW && takeRemote(r.data, r.version)).catch(() => {}), 4000);
 }
 
 function startRemote() {
@@ -84,25 +164,34 @@ function startRemote() {
   if (!sb) return;
   const row = ROW;
   ready = (async () => {
-    const first = await fetchRemote();
+    const pub = await fetchPublic();
     if (row !== ROW) return; // entretanto mudou de loja
-    if (!first) {
-      status = "missing"; // não existe, ou está suspensa (a RLS esconde a linha)
+    if (!pub) {
+      status = "missing"; // não existe, ou está suspensa
       notify();
       return;
     }
     status = "ready";
-    takeRemote(first.data, first.version);
+    takePublic(pub.data, pub.version);
     notify();
-    chan = sb!
-      .channel(`loja-${row}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.${row}` }, (p) => {
-        const r = p.new as { data: DB; version: number };
-        takeRemote(r.data, r.version);
-      })
-      .subscribe();
-    // rede de segurança caso o Realtime não esteja ativo
-    poll = setInterval(() => fetchRemote().then((r) => r && row === ROW && takeRemote(r.data, r.version)).catch(() => {}), 4000);
+    // o cardápio acompanha as alterações da equipe (o cliente não tem Realtime no estado privado)
+    pubPoll = setInterval(
+      () =>
+        fetchPublic()
+          .then((r) => {
+            if (row !== ROW) return;
+            if (!r) {
+              status = "missing";
+              notify();
+            } else takePublic(r.data, r.version);
+          })
+          .catch(() => {}),
+      8000,
+    );
+    authSub = sb!.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") void attachStaff(row);
+    }).data.subscription;
+    await attachStaff(row);
   })();
   ready.catch((e) => {
     console.error("Supabase:", e);
@@ -207,7 +296,7 @@ export function useDB(): DB {
 export function mutate(fn: (db: DB) => void) {
   if (REMOTE) {
     startRemote();
-    if (status !== "ready") return; // loja indisponível: não escreve
+    if (status !== "ready" || mode !== "staff") return; // loja indisponível ou sem acesso de equipe: não escreve
     const ids: string[] = [];
     const next = structuredClone(read());
     withIds(ids, null, () => fn(next));
