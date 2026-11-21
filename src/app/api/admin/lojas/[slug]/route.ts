@@ -28,7 +28,7 @@ async function alterar(req: Request, { params }: { params: { slug: string } }) {
     const { data: m } = await sb.from("membros").select("user_id").eq("loja", params.slug).eq("papel", "dono").limit(1).maybeSingle();
     if (!m) return json({ erro: "Esta loja ainda não tem dono." }, 404);
     const senha = tempPassword();
-    const { error } = await sb.auth.admin.updateUserById(m.user_id, { password: senha });
+    const { error } = await sb.auth.admin.updateUserById(m.user_id, { password: senha, user_metadata: { trocar_senha: true } });
     if (error) return json({ erro: error.message }, 500);
     return json({ senhaTemporaria: senha });
   }

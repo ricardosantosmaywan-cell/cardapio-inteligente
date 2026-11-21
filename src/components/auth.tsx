@@ -5,6 +5,7 @@ import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { getRole, Role, setRole, useDB } from "@/lib/store";
 import { getSupabase, REMOTE } from "@/lib/supabase";
 import { useLoja } from "@/components/loja";
+import { BotaoSenha, SenhaObrigatoria } from "@/components/senha";
 import { ChefHat, ChevronLeft, LayoutGrid, LogOut, PackageX, type LucideIcon } from "lucide-react";
 import { initials } from "@/lib/utils";
 
@@ -33,7 +34,7 @@ function LoginTop({ base }: { base: string }) {
 type Auth =
   | { state: "loading" }
   | { state: "out" }
-  | { state: "in"; email: string; role: Role | "admin" | null };
+  | { state: "in"; email: string; role: Role | "admin" | null; trocarSenha: boolean };
 
 /** Papel do utilizador nesta loja: super admin, dono, garçom, ou nenhum. */
 function useAuth(slug: string): Auth & { signOut: () => void } {
@@ -50,7 +51,7 @@ function useAuth(slug: string): Auth & { signOut: () => void } {
       sb.from("membros").select("papel").eq("user_id", user.id).eq("loja", slug).maybeSingle(),
     ]);
     const role: Role | "admin" | null = sa.data ? "admin" : ((mem.data?.papel as Role | undefined) ?? null);
-    setAuth({ state: "in", email: user.email ?? "", role });
+    setAuth({ state: "in", email: user.email ?? "", role, trocarSenha: user.user_metadata?.trocar_senha === true });
   }, [slug]);
 
   useEffect(() => {
@@ -154,6 +155,7 @@ export function RoleGate({
     if (real.state === "out") return <RealLogin area={area} base={base} />;
     role = real.role;
     email = real.email;
+    if (real.trocarSenha && role) return <SenhaObrigatoria email={email} onSair={real.signOut} />;
   } else {
     if (localRole === undefined) return null;
     role = localRole;
@@ -202,6 +204,7 @@ export function RoleGate({
             ))}
           </nav>
           <span className="badge">{ROLE_LABEL[role]}</span>
+          {REMOTE && email && <BotaoSenha email={email} />}
           <button className="btn sm" onClick={logout}><LogOut className="icon" size={17} aria-hidden="true" />Sair</button>
         </div>
       </div>

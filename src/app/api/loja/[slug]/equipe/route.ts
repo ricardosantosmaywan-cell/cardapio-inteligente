@@ -45,7 +45,7 @@ export const POST = (req: Request, ctx: Ctx) =>
       if (ja?.papel === "garcom") return json({ erro: "Esse e-mail já está na equipe." }, 409);
     } else {
       const senha = tempPassword();
-      const criado = await sb.auth.admin.createUser({ email, password: senha, email_confirm: true });
+      const criado = await sb.auth.admin.createUser({ email, password: senha, email_confirm: true, user_metadata: { trocar_senha: true } });
       if (criado.error || !criado.data.user) return json({ erro: criado.error?.message ?? "Não foi possível criar a conta do garçom." }, 500);
       userId = criado.data.user.id;
       senhaTemporaria = senha;

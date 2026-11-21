@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getSupabase, REMOTE } from "@/lib/supabase";
 import { Check, Copy, ExternalLink, KeyRound, LogOut, Pause, Pencil, Play, Plus, Store, UserRound } from "lucide-react";
 import { ClientOnly, Copiavel, EmptyState, ErrorState, Modal, Skeleton, useToast } from "@/components/ui";
+import { BotaoSenha } from "@/components/senha";
 import { createLocal, listLocal, setAtivoLocal, setLimiteLocal, usadasLocal } from "@/lib/local-lojas";
 
 type Loja = { slug: string; nome: string; moeda: "BRL" | "EUR"; ativo: boolean; criado_em: string; donos: string[]; limite_mesas: number; mesas_usadas: number };
@@ -248,6 +249,7 @@ function Painel({ email, onSair, backend }: { email: string; onSair?: () => void
           <span className="logo" style={{ borderRadius: 11, width: 36, height: 36 }} aria-hidden="true"><Store size={20} /></span>
           <span className="brandname grow">Administração</span>
           <span className="row muted small" style={{ gap: 8 }}><UserRound size={16} aria-hidden="true" />{email}</span>
+          {!backend.local && <BotaoSenha email={email} />}
           {onSair && <button className="btn sm" onClick={onSair}><LogOut className="icon" size={17} aria-hidden="true" />Sair</button>}
         </div>
       </div>
