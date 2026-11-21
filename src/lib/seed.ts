@@ -1,4 +1,4 @@
-import type { DB } from "./types";
+import type { Currency, DB } from "./types";
 
 const now = Date.now();
 const min = (m: number) => now - m * 60_000;
@@ -8,7 +8,7 @@ export const SEED_VERSION = 1;
 export function makeSeed(): DB {
   return {
     version: SEED_VERSION,
-    establishment: { name: "Tasca do Largo" },
+    establishment: { name: "Boteco do Largo", currency: "BRL" },
     categories: [
       { id: "c1", name: "Entradas", order: 1 },
       { id: "c2", name: "Pratos", order: 2 },
@@ -44,7 +44,7 @@ export function makeSeed(): DB {
       { id: "t4", name: "Mesa 4", token: "demo-mesa-4-7a05f3b9d1c64e82" },
       { id: "t5", name: "Balcão", token: "demo-balcao-5-e2194cd7a8f03b65" },
     ],
-    // Mesa 3 já tem uma sessão em curso para o garçom ter algo no ecrã.
+    // Mesa 3 já tem uma sessão em curso para o garçom ter algo no tela.
     sessions: [{ id: "s1", tableId: "t3", openedAt: min(42) }],
     guests: [
       { id: "g1", sessionId: "s1", name: "Marta", phone: "912 345 678", status: "aprovado" },
@@ -66,5 +66,23 @@ export function makeSeed(): DB {
         ],
       },
     ],
+  };
+}
+
+/**
+ * Estado inicial de uma loja nova (criada no /admin): categorias de arranque,
+ * sem produtos nem ofertas, e as mesas pedidas com um token cada.
+ */
+export function makeStoreSeed(opts: { name: string; currency: Currency; tableNames: string[]; tokens: string[] }): DB {
+  return {
+    version: SEED_VERSION,
+    establishment: { name: opts.name, currency: opts.currency },
+    categories: ["Lanches", "Porções", "Pratos", "Sobremesas", "Bebidas"].map((name, i) => ({ id: `c${i + 1}`, name, order: i + 1 })),
+    products: [],
+    offers: [],
+    tables: opts.tableNames.map((name, i) => ({ id: `t${i + 1}`, name, token: opts.tokens[i] })),
+    sessions: [],
+    guests: [],
+    orders: [],
   };
 }

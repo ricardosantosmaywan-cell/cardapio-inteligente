@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
+import { Plus, X, Check, Camera } from "lucide-react";
 import { mutate, useDB } from "@/lib/store";
-import { Modal, ProductThumb, Thumb, useToast } from "@/components/ui";
-import { compressImage, eur, parseEuro, toEuroInput, uid } from "@/lib/utils";
+import { EmptyState, Modal, ProductThumb, Thumb, useToast } from "@/components/ui";
+import { compressImage, currencySymbol, money, parseMoney, toMoneyInput, uid } from "@/lib/utils";
 import type { Product } from "@/lib/types";
 
 type Draft = { id?: string; name: string; description: string; price: string; categoryId: string; emoji: string; photo?: string; available: boolean };
@@ -26,14 +27,14 @@ export default function Produtos() {
   };
   const openEdit = (p: Product) => {
     setErr("");
-    setDraft({ ...p, price: toEuroInput(p.price) });
+    setDraft({ ...p, price: toMoneyInput(p.price) });
   };
 
   const save = () => {
     if (!draft) return;
-    const price = parseEuro(draft.price);
-    if (!draft.name.trim()) return setErr("Indique o nome do produto.");
-    if (!Number.isFinite(price) || price < 0) return setErr("Indique um preço válido, por exemplo 12,50.");
+    const price = parseMoney(draft.price);
+    if (!draft.name.trim()) return setErr("Informe o nome do produto.");
+    if (!Number.isFinite(price) || price < 0) return setErr("Informe um preço válido, por exemplo 12,50.");
     if (!draft.categoryId) return setErr("Crie primeiro uma categoria.");
     mutate((d) => {
       const data = {
@@ -44,14 +45,14 @@ export default function Produtos() {
       else d.products.push({ id: uid("p"), ...data });
     });
     setDraft(null);
-    toast.show("Produto guardado ✅");
+    toast.show("Produto salvo ✅");
   };
 
   return (
     <main className="shell">
       <div className="row between wrap">
         <h1>Produtos</h1>
-        <button className="btn primary" onClick={openNew}>＋ Novo produto</button>
+        <button className="btn primary" onClick={openNew}><Plus className="icon" size={18} aria-hidden="true" /> Novo produto</button>
       </div>
       <div className="row wrap">
         <input className="input grow" style={{ minWidth: 200 }} placeholder="Pesquisar produto…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Pesquisar produto" />
@@ -70,15 +71,15 @@ export default function Produtos() {
                 <td><ProductThumb p={p} /></td>
                 <td><div className="bold">{p.name}</div><div className="small muted">{p.description}</div></td>
                 <td>{db.categories.find((c) => c.id === p.categoryId)?.name}</td>
-                <td className="bold">{eur(p.price)}</td>
-                <td><span className={`badge ${p.available ? "ok" : "bad"}`}>{p.available ? "Disponível" : "Esgotado"}</span></td>
+                <td className="bold">{money(p.price)}</td>
+                <td><span className={`badge ${p.available ? "ok" : "bad"}`}>{p.available ? <><Check className="icon" size={14} aria-hidden="true" /> Disponível</> : <><X className="icon" size={14} aria-hidden="true" /> Esgotado</>}</span></td>
                 <td className="right">
                   <button className="btn sm" onClick={() => openEdit(p)}>Editar</button>{" "}
-                  <button className="btn sm danger" aria-label={`Remover ${p.name}`} onClick={() => confirm(`Remover “${p.name}”?`) && mutate((d) => { d.products = d.products.filter((x) => x.id !== p.id); })}>✕</button>
+                  <button className="btn sm danger" aria-label={`Remover ${p.name}`} onClick={() => confirm(`Remover “${p.name}”?`) && mutate((d) => { d.products = d.products.filter((x) => x.id !== p.id); })}><X className="icon" size={18} aria-hidden="true" /></button>
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={6} className="center muted">Nenhum produto encontrado.</td></tr>}
+            {list.length === 0 && <tr><td colSpan={6}><EmptyState title={db.products.length === 0 ? "Ainda não há produtos" : "Nenhum produto encontrado"} hint={db.products.length === 0 ? "Cadastre o primeiro produto para ele aparecer no cardápio do cliente." : "Tente outra busca ou outra categoria."}>{db.products.length === 0 && <button className="btn primary" onClick={openNew}><Plus className="icon" size={18} aria-hidden="true" />Novo produto</button>}</EmptyState></td></tr>}
           </tbody>
         </table>
       </div>
@@ -89,7 +90,7 @@ export default function Produtos() {
             <Thumb large emoji={draft.emoji} photo={draft.photo} />
             <div className="stack grow" style={{ gap: 8 }}>
               <label className="btn" style={{ cursor: "pointer" }}>
-                📷 Enviar foto
+                <Camera className="icon" size={18} aria-hidden="true" /> Enviar foto
                 <input type="file" accept="image/*" hidden onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (f) setDraft({ ...draft, photo: await compressImage(f) });
@@ -105,7 +106,7 @@ export default function Produtos() {
           <div className="field"><label htmlFor="pn">Nome</label><input id="pn" className="input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
           <div className="field"><label htmlFor="pd">Descrição</label><textarea id="pd" className="textarea" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></div>
           <div className="row">
-            <div className="field grow"><label htmlFor="pp">Preço (€, IVA incluído)</label><input id="pp" className="input" inputMode="decimal" placeholder="12,50" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} /></div>
+            <div className="field grow"><label htmlFor="pp">Preço ({currencySymbol()})</label><input id="pp" className="input" inputMode="decimal" placeholder="12,50" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} /></div>
             <div className="field grow"><label htmlFor="pc">Categoria</label>
               <select id="pc" className="select" value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })}>
                 {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -114,7 +115,7 @@ export default function Produtos() {
           </div>
           <label className="row"><input type="checkbox" checked={draft.available} onChange={(e) => setDraft({ ...draft, available: e.target.checked })} /> Disponível hoje</label>
           {err && <div className="alert bad" role="alert">{err}</div>}
-          <button className="btn primary block" onClick={save}>Guardar</button>
+          <button className="btn primary block" onClick={save}>Salvar</button>
         </Modal>
       )}
       {toast.node}

@@ -1,6 +1,7 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { PackageOpen, RefreshCw, WifiOff, X } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { useMounted } from "@/lib/store";
 
@@ -9,15 +10,54 @@ export function ClientOnly({ children }: { children: ReactNode }) {
   return useMounted() ? <>{children}</> : null;
 }
 
-export function Thumb({ emoji, photo, large }: { emoji: string; photo?: string; large?: boolean }) {
+export function Thumb({ emoji, photo, large, xl }: { emoji: string; photo?: string; large?: boolean; xl?: boolean }) {
   return (
-    <div className={`thumb${large ? " lg" : ""}`} aria-hidden="true">
+    <div className={`thumb${large ? " lg" : ""}${xl ? " xl" : ""}`} aria-hidden="true">
       {photo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photo} alt="" /> : emoji}
     </div>
   );
 }
 
-export const ProductThumb = ({ p }: { p: Product }) => <Thumb emoji={p.emoji} photo={p.photo} />;
+/** Interruptor acessível (role="switch"). */
+export function Switch({ checked, onChange, label, stateText }: { checked: boolean; onChange: (v: boolean) => void; label: string; stateText?: string }) {
+  return (
+    <div className="switch">
+      <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} />
+      <span>{label}</span>
+      {stateText && <span className="muted small">{stateText}</span>}
+    </div>
+  );
+}
+
+/** Estado vazio: ícone, título e, se fizer sentido, uma dica. */
+export function EmptyState({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <div className="empty-icon" aria-hidden="true"><PackageOpen size={26} /></div>
+      <div className="empty-title">{title}</div>
+      {hint && <p className="small">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+/** Estado de erro com botão para tentar de novo. */
+export function ErrorState({ title = "Não foi possível carregar", hint = "Verifique a internet e tente de novo.", onRetry }: { title?: string; hint?: string; onRetry?: () => void }) {
+  return (
+    <div className="empty" role="alert">
+      <div className="empty-icon" aria-hidden="true"><WifiOff size={26} /></div>
+      <div className="empty-title">{title}</div>
+      <p className="small">{hint}</p>
+      {onRetry && <button className="btn" onClick={onRetry}><RefreshCw className="icon" size={17} aria-hidden="true" />Tentar de novo</button>}
+    </div>
+  );
+}
+
+export const Skeleton = ({ h = 16, w = "100%" }: { h?: number; w?: number | string }) => (
+  <div className="skeleton" style={{ height: h, width: w }} aria-hidden="true" />
+);
+
+export const ProductThumb = ({ p, xl }: { p: Product; xl?: boolean }) => <Thumb emoji={p.emoji} photo={p.photo} xl={xl} />;
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
@@ -30,7 +70,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="row between">
           <h2>{title}</h2>
-          <button className="btn sm ghost" onClick={onClose} aria-label="Fechar">✕</button>
+          <button className="btn sm ghost" onClick={onClose} aria-label="Fechar"><X className="icon" size={18} aria-hidden="true" /></button>
         </div>
         {children}
       </div>
@@ -57,8 +97,8 @@ export function Qr({ value }: { value: string }) {
   return <div className="qr">{src ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={src} alt="QR code da mesa" /> : <div style={{ width: 168, height: 168 }} />}</div>;
 }
 
-export const mesaUrl = (token: string) =>
-  typeof window === "undefined" ? `/mesa/${token}` : `${window.location.origin}/mesa/${token}`;
+export const mesaUrl = (slug: string, token: string) =>
+  `${typeof window === "undefined" ? "" : window.location.origin}/l/${slug}/mesa/${token}`;
 
 /** Mesa vista de cima, com uma cadeira por cliente aprovado (até 6). */
 export function TableIcon({ name, state, guests }: { name: string; state: "livre" | "ocupada" | "conta" | "chamou"; guests: number }) {

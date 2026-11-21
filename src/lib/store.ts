@@ -1,20 +1,26 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { makeSeed, SEED_VERSION } from "./seed";
+import { makeSeed, makeStoreSeed, SEED_VERSION } from "./seed";
 import type { DB, Guest, Order, OrderItem, Product } from "./types";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import { getSupabase, REMOTE } from "./supabase";
 import { itemDelivered, offerLive, openSession, token, uid, withIds } from "./utils";
 
 /**
- * Base de dados. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos, todo o estado
- * vive numa linha da tabela `app_state` (ver supabase/schema.sql) e sincroniza
- * entre aparelhos por Realtime. Sem elas, cai para o localStorage (demo local,
- * sincronizada só entre abas do mesmo navegador).
+ * Base de dados, por loja. Com NEXT_PUBLIC_SUPABASE_URL/ANON_KEY definidos, o estado
+ * de cada loja vive numa linha da tabela `app_state` (id = slug da loja, ver
+ * supabase/schema-multiloja.sql) e sincroniza entre aparelhos por Realtime.
+ * Sem elas, cai para o localStorage (demo local, sincronizada só entre abas).
+ *
+ * A loja é escolhida por `configureStore(slug)`, chamado pelo layout /l/[slug].
+ * As lojas são criadas só pelo /admin: esta camada nunca cria nem repõe linhas.
  */
-const KEY = "cardapio-mock-db-v1";
-const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const REMOTE = !!(SB_URL && SB_KEY);
+let STORE = "";
+let ROW = "";
+let KEY = "cardapio-db-";
+
+export type StoreStatus = "loading" | "ready" | "missing" | "error";
+let status: StoreStatus = REMOTE ? "loading" : "ready";
 
 let cache: DB | null = null;
 let cacheRaw: string | null = null;
@@ -23,8 +29,9 @@ const serverSeed = makeSeed();
 
 /* ---------- Supabase ---------- */
 
-const ROW = "main";
 let sb: SupabaseClient | null = null;
+let chan: RealtimeChannel | null = null;
+let poll: ReturnType<typeof setInterval> | null = null;
 let remoteData: DB | null = null;
 let remoteVersion = -1;
 let pending = 0;
@@ -32,6 +39,28 @@ let queue: Promise<unknown> = Promise.resolve();
 let ready: Promise<void> | null = null;
 
 const notify = () => listeners.forEach((l) => l());
+
+/** Escolhe a loja. Se mudar de loja, limpa tudo o que era da anterior. */
+export function configureStore(slug: string) {
+  if (slug === STORE) return;
+  if (chan && sb) sb.removeChannel(chan);
+  if (poll) clearInterval(poll);
+  chan = null;
+  poll = null;
+  STORE = slug;
+  ROW = slug;
+  KEY = `cardapio-db-${slug}`;
+  cache = null;
+  cacheRaw = null;
+  remoteData = null;
+  remoteVersion = -1;
+  pending = 0;
+  queue = Promise.resolve();
+  ready = null;
+  status = REMOTE ? "loading" : "ready";
+}
+
+export const useStoreStatus = (): StoreStatus => useSyncExternalStore(subscribe, () => status, () => (REMOTE ? "loading" : "ready"));
 
 function takeRemote(data: DB, version: number) {
   if (version <= remoteVersion) return;
@@ -50,35 +79,41 @@ async function fetchRemote() {
 }
 
 function startRemote() {
-  if (ready || typeof window === "undefined") return;
-  sb = createClient(SB_URL!, SB_KEY!);
+  if (ready || typeof window === "undefined" || !STORE) return;
+  sb = getSupabase();
+  if (!sb) return;
+  const row = ROW;
   ready = (async () => {
-    let row = await fetchRemote();
-    if (!row || row.data.version !== SEED_VERSION) {
-      const seed = makeSeed();
-      if (!row) {
-        await sb!.from("app_state").upsert({ id: ROW, data: seed, version: 0 }, { onConflict: "id", ignoreDuplicates: true });
-      } else {
-        await sb!.from("app_state").update({ data: seed, version: row.version + 1 }).eq("id", ROW).eq("version", row.version);
-      }
-      row = await fetchRemote();
+    const first = await fetchRemote();
+    if (row !== ROW) return; // entretanto mudou de loja
+    if (!first) {
+      status = "missing"; // não existe, ou está suspensa (a RLS esconde a linha)
+      notify();
+      return;
     }
-    if (row) takeRemote(row.data, row.version);
-    sb!
-      .channel("app_state")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state" }, (p) => {
+    status = "ready";
+    takeRemote(first.data, first.version);
+    notify();
+    chan = sb!
+      .channel(`loja-${row}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.${row}` }, (p) => {
         const r = p.new as { data: DB; version: number };
         takeRemote(r.data, r.version);
       })
       .subscribe();
     // rede de segurança caso o Realtime não esteja ativo
-    setInterval(() => fetchRemote().then((r) => r && takeRemote(r.data, r.version)).catch(() => {}), 4000);
+    poll = setInterval(() => fetchRemote().then((r) => r && row === ROW && takeRemote(r.data, r.version)).catch(() => {}), 4000);
   })();
-  ready.catch((e) => console.error("Supabase:", e));
+  ready.catch((e) => {
+    console.error("Supabase:", e);
+    status = "error";
+    notify();
+  });
 }
 
 async function push(fn: (db: DB) => void, ids: string[]) {
   await ready;
+  if (!remoteData) throw new Error("Loja indisponível");
   for (let i = 0; i < 8; i++) {
     const next = structuredClone(remoteData!);
     withIds(null, ids, () => fn(next));
@@ -103,6 +138,12 @@ async function push(fn: (db: DB) => void, ids: string[]) {
   throw new Error("Conflito de escrita repetido");
 }
 
+/** Modo local: a loja "demo" tem dados de exemplo; qualquer outro slug começa vazio. */
+const localSeed = (): DB =>
+  STORE === "demo"
+    ? makeSeed()
+    : makeStoreSeed({ name: STORE, currency: "BRL", tableNames: ["Mesa 1", "Mesa 2", "Mesa 3"], tokens: ["local-1", "local-2", "local-3"].map((t) => `${STORE}-${t}`) });
+
 function read(): DB {
   if (REMOTE) return cache ?? (cache = serverSeed);
   if (typeof window === "undefined") return serverSeed;
@@ -125,7 +166,7 @@ function read(): DB {
       /* cai para o seed */
     }
   }
-  if (!cache) cache = makeSeed();
+  if (!cache) cache = localSeed();
   write(cache);
   return cache;
 }
@@ -166,10 +207,11 @@ export function useDB(): DB {
 export function mutate(fn: (db: DB) => void) {
   if (REMOTE) {
     startRemote();
+    if (status !== "ready") return; // loja indisponível: não escreve
     const ids: string[] = [];
     const next = structuredClone(read());
     withIds(ids, null, () => fn(next));
-    cache = next; // otimista: o ecrã responde já
+    cache = next; // otimista: o tela responde já
     notify();
     pending++;
     queue = queue
@@ -189,13 +231,10 @@ export function mutate(fn: (db: DB) => void) {
   write(next);
 }
 
+/** Só no modo local (demo). Com Supabase nunca apaga dados de uma loja. */
 export function resetDemo() {
-  if (REMOTE) {
-    const seed = makeSeed();
-    mutate((db) => Object.assign(db, seed));
-    return;
-  }
-  write(makeSeed());
+  if (REMOTE) return;
+  write(localSeed());
 }
 
 /** Evita diferenças entre HTML do servidor e do cliente (horas, ids). */
@@ -214,7 +253,7 @@ export function useTick(ms = 15000) {
   }, [ms]);
 }
 
-/* ---------- Sessão do dispositivo (por aba, simula um telemóvel) ---------- */
+/* ---------- Sessão do dispositivo (por aba, simula um celular) ---------- */
 
 const gkey = (tableToken: string) => `cardapio-guest-${tableToken}`;
 export const getGuestId = (tableToken: string) => {

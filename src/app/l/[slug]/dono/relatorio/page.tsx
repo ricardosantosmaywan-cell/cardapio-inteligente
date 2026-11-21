@@ -1,6 +1,6 @@
 "use client";
 import { useDB } from "@/lib/store";
-import { eur, orderTotal } from "@/lib/utils";
+import { locale, money, orderTotal } from "@/lib/utils";
 
 export default function Relatorio() {
   const db = useDB();
@@ -11,7 +11,7 @@ export default function Relatorio() {
   const perTable = new Map<string, number>();
 
   for (const o of orders) {
-    const day = new Date(o.createdAt).toLocaleDateString("pt-PT");
+    const day = new Date(o.createdAt).toLocaleDateString(locale());
     const d = perDay.get(day) ?? { n: 0, total: 0 };
     d.n += 1;
     d.total += orderTotal(o);
@@ -39,7 +39,7 @@ export default function Relatorio() {
           <table className="data">
             <thead><tr><th>Dia</th><th>Pedidos</th><th>Valor estimado</th></tr></thead>
             <tbody>
-              {[...perDay.entries()].map(([d, v]) => <tr key={d}><td>{d}</td><td>{v.n}</td><td>{eur(v.total)}</td></tr>)}
+              {[...perDay.entries()].map(([d, v]) => <tr key={d}><td>{d}</td><td>{v.n}</td><td>{money(v.total)}</td></tr>)}
               {perDay.size === 0 && <tr><td colSpan={3} className="muted">Sem pedidos ainda.</td></tr>}
             </tbody>
           </table>
@@ -49,7 +49,7 @@ export default function Relatorio() {
           <table className="data">
             <thead><tr><th>Mesa</th><th>Valor estimado</th></tr></thead>
             <tbody>
-              {tables.map(([n, v]) => <tr key={n}><td>{n}</td><td>{eur(v)}</td></tr>)}
+              {tables.map(([n, v]) => <tr key={n}><td>{n}</td><td>{money(v)}</td></tr>)}
               {tables.length === 0 && <tr><td colSpan={2} className="muted">Sem dados.</td></tr>}
             </tbody>
           </table>

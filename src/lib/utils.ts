@@ -1,7 +1,15 @@
-import type { DB, Offer, Order, OrderItem, Session, Table, TableState } from "./types";
+import type { Currency, DB, Offer, Order, OrderItem, Session, Table, TableState } from "./types";
 
-export const eur = (cents: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(cents / 100);
+/** Moeda e idioma vêm da configuração da loja (padrão: Real, pt-BR). */
+let CUR: Currency = "BRL";
+export const setCurrency = (c: Currency | undefined) => {
+  CUR = c === "EUR" ? "EUR" : "BRL";
+};
+export const currencySymbol = () => (CUR === "EUR" ? "€" : "R$");
+export const locale = () => (CUR === "EUR" ? "pt-PT" : "pt-BR");
+
+export const money = (cents: number) =>
+  new Intl.NumberFormat(locale(), { style: "currency", currency: CUR }).format(cents / 100);
 
 /**
  * Ids e tokens são gerados uma vez e repetidos se uma escrita no Supabase tiver
@@ -37,7 +45,7 @@ export const token = () =>
   );
 
 export const hhmm = (ts: number) =>
-  new Date(ts).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 
 export const ago = (ts: number) => {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -46,6 +54,10 @@ export const ago = (ts: number) => {
   if (m < 60) return `há ${m} min`;
   return `há ${Math.round(m / 60)} h`;
 };
+
+/** Iniciais do nome da loja (logotipo provisório). */
+export const initials = (name: string) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "•";
 
 export const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -119,8 +131,8 @@ export function compressImage(file: File, max = 640): Promise<string> {
   });
 }
 
-export const parseEuro = (s: string) => Math.round(parseFloat(s.replace(",", ".")) * 100);
-export const toEuroInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+export const parseMoney = (s: string) => Math.round(parseFloat(s.replace(",", ".")) * 100);
+export const toMoneyInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
 /** Pedidos antigos só tinham o estado do pedido inteiro. */
 export const itemDelivered = (o: Order, i: OrderItem) => i.delivered ?? o.status === "entregue";
