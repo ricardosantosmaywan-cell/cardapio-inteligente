@@ -6,7 +6,7 @@ import { getRole, Role, setRole, useDB } from "@/lib/store";
 import { getSupabase, REMOTE } from "@/lib/supabase";
 import { useLoja } from "@/components/loja";
 import { BotaoSenha, SenhaObrigatoria } from "@/components/senha";
-import { ChefHat, ChevronLeft, LayoutGrid, LogOut, PackageX, type LucideIcon } from "lucide-react";
+import { ChefHat, ChevronLeft, LayoutGrid, LogOut, Menu as MenuIcon, PackageX, X, type LucideIcon } from "lucide-react";
 import { initials } from "@/lib/utils";
 
 const NAV_ICON: Record<string, LucideIcon> = { mesas: LayoutGrid, faltas: PackageX, garcom: ChefHat };
@@ -148,6 +148,16 @@ export function RoleGate({
   const [localRole, setLocalRole] = useState<Role | null | undefined>(undefined);
   useEffect(() => setLocalRole(getRole()), []);
 
+  // Menu do celular: abre e fecha; fecha ao mudar de página ou com Esc
+  const [menu, setMenu] = useState(false);
+  useEffect(() => setMenu(false), [path]);
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
+
   let role: Role | "admin" | null;
   let email = "";
   if (REMOTE) {
@@ -189,23 +199,30 @@ export function RoleGate({
 
   return (
     <div className={tablet ? "tablet" : undefined}>
-      <div className="topbar no-print">
+      <div className={`topbar no-print${nav.length > 3 ? " nav-muitos" : ""}`}>
         <div className="topbar-inner">
           <Link href={base} className="brandmark">
             <span className="logo" role="img" aria-label="Logotipo da loja">{initials(db.establishment.name)}</span>
             <span className="brandname">{db.establishment.name}</span>
           </Link>
-          <nav>
-            {prefixed.map((n) => (
-              <Link key={n.href} href={n.href} className={`navlink${isOn(n.href) ? " on" : ""}`}>
-                {n.icon && NAV_ICON[n.icon] && (() => { const I = NAV_ICON[n.icon!]; return <I className="icon" size={20} aria-hidden="true" />; })()}
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <span className="badge">{ROLE_LABEL[role]}</span>
-          {REMOTE && email && <BotaoSenha email={email} />}
-          <button className="btn sm" onClick={logout}><LogOut className="icon" size={17} aria-hidden="true" />Sair</button>
+          <button type="button" className="btn sm menu-btn" aria-expanded={menu} aria-controls="menu-equipe" onClick={() => setMenu(!menu)}>
+            {menu ? <X className="icon" size={18} aria-hidden="true" /> : <MenuIcon className="icon" size={18} aria-hidden="true" />}Menu
+          </button>
+          <div id="menu-equipe" className={`topbar-painel${menu ? " aberto" : ""}`}>
+            <nav aria-label="Navegação principal">
+              {prefixed.map((n) => (
+                <Link key={n.href} href={n.href} className={`navlink${isOn(n.href) ? " on" : ""}`} aria-current={isOn(n.href) ? "page" : undefined}>
+                  {n.icon && NAV_ICON[n.icon] && (() => { const I = NAV_ICON[n.icon!]; return <I className="icon" size={20} aria-hidden="true" />; })()}
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="topbar-acoes">
+              <span className="badge">{ROLE_LABEL[role]}</span>
+              {REMOTE && email && <BotaoSenha email={email} />}
+              <button className="btn sm" onClick={logout}><LogOut className="icon" size={17} aria-hidden="true" />Sair</button>
+            </div>
+          </div>
         </div>
       </div>
       {children}

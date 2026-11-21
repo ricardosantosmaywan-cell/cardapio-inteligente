@@ -273,11 +273,11 @@ function Painel({ email, onSair, backend }: { email: string; onSair?: () => void
               <tbody>
                 {lojas.map((l) => (
                   <tr key={l.slug}>
-                    <td className="bold">{l.nome}</td>
-                    <td><code>/l/{l.slug}</code></td>
-                    <td className="small">{backend.local ? <span className="muted">simulado</span> : l.donos.length ? l.donos.join(", ") : <span className="muted">sem dono</span>}</td>
-                    <td>{l.moeda === "BRL" ? "R$" : "€"}</td>
-                    <td>
+                    <td className="bold" data-label="Loja">{l.nome}</td>
+                    <td data-label="Endereço"><code>/l/{l.slug}</code></td>
+                    <td className="small" data-label="Dono">{backend.local ? <span className="muted">simulado</span> : l.donos.length ? l.donos.join(", ") : <span className="muted">sem dono</span>}</td>
+                    <td data-label="Moeda">{l.moeda === "BRL" ? "R$" : "€"}</td>
+                    <td data-label="Mesas">
                       <button
                         className="btn sm ghost"
                         style={{ fontVariantNumeric: "tabular-nums", color: l.mesas_usadas >= l.limite_mesas ? "var(--warn-fg)" : undefined }}
@@ -288,10 +288,10 @@ function Painel({ email, onSair, backend }: { email: string; onSair?: () => void
                         <b>{l.mesas_usadas}</b> / {l.limite_mesas}{l.slug !== "demo" && <Pencil className="icon" size={14} aria-hidden="true" />}
                       </button>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <span className={`badge ${l.ativo ? "ok" : "bad"}`}>{l.ativo ? <Check size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{l.ativo ? "Ativa" : "Suspensa"}</span>
                     </td>
-                    <td>
+                    <td data-label="">
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(130px, 1fr))", gap: 8, minWidth: 290 }}>
                         <Link className="btn sm" href={`/l/${l.slug}/dono`} target="_blank">Painel do dono<ExternalLink className="icon" size={15} aria-hidden="true" /></Link>
                         <button className="btn sm" onClick={() => copiar(`${origin}/l/${l.slug}`)}><Copy className="icon" size={15} aria-hidden="true" />Copiar link</button>
