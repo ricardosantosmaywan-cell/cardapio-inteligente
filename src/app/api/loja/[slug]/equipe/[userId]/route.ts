@@ -27,7 +27,7 @@ export const PATCH = (req: Request, ctx: Ctx) =>
     const body = (await req.json().catch(() => null)) as { resetSenha?: boolean } | null;
     if (!body?.resetSenha) return json({ erro: "Nada para alterar." }, 400);
     const senha = tempPassword();
-    const { error } = await sb.auth.admin.updateUserById(userId, { password: senha });
+    const { error } = await sb.auth.admin.updateUserById(userId, { password: senha, user_metadata: { trocar_senha: true } });
     if (error) return json({ erro: error.message }, 500);
     return json({ senhaTemporaria: senha });
   });

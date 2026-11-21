@@ -70,7 +70,7 @@ async function criar(req: Request) {
   let donoJaExistia = false;
   if (emailDono) {
     const senha = tempPassword();
-    const created = await sb.auth.admin.createUser({ email: emailDono, password: senha, email_confirm: true });
+    const created = await sb.auth.admin.createUser({ email: emailDono, password: senha, email_confirm: true, user_metadata: { trocar_senha: true } });
     let userId = created.data.user?.id;
     if (created.error || !userId) {
       // e-mail já registado: liga a conta existente, sem mexer na senha dela
