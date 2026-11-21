@@ -68,12 +68,12 @@ export default function Produtos() {
           <tbody>
             {list.map((p) => (
               <tr key={p.id}>
-                <td><ProductThumb p={p} /></td>
-                <td><div className="bold">{p.name}</div><div className="small muted">{p.description}</div></td>
-                <td>{db.categories.find((c) => c.id === p.categoryId)?.name}</td>
-                <td className="bold">{money(p.price)}</td>
-                <td><span className={`badge ${p.available ? "ok" : "bad"}`}>{p.available ? <><Check className="icon" size={14} aria-hidden="true" /> Disponível</> : <><X className="icon" size={14} aria-hidden="true" /> Esgotado</>}</span></td>
-                <td className="right">
+                <td className="cel-foto" data-label=""><ProductThumb p={p} /></td>
+                <td className="cel-nome" data-label=""><div className="bold">{p.name}</div><div className="small muted">{p.description}</div></td>
+                <td data-label="Categoria">{db.categories.find((c) => c.id === p.categoryId)?.name}</td>
+                <td className="bold" data-label="Preço">{money(p.price)}</td>
+                <td data-label="Estado"><span className={`badge ${p.available ? "ok" : "bad"}`}>{p.available ? <><Check className="icon" size={14} aria-hidden="true" /> Disponível</> : <><X className="icon" size={14} aria-hidden="true" /> Esgotado</>}</span></td>
+                <td className="right" data-label="">
                   <button className="btn sm" onClick={() => openEdit(p)}>Editar</button>{" "}
                   <button className="btn sm danger" aria-label={`Remover ${p.name}`} onClick={() => confirm(`Remover “${p.name}”?`) && mutate((d) => { d.products = d.products.filter((x) => x.id !== p.id); })}><X className="icon" size={18} aria-hidden="true" /></button>
                 </td>

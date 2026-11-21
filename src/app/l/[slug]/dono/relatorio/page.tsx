@@ -39,7 +39,7 @@ export default function Relatorio() {
           <table className="data">
             <thead><tr><th>Dia</th><th>Pedidos</th><th>Valor estimado</th></tr></thead>
             <tbody>
-              {[...perDay.entries()].map(([d, v]) => <tr key={d}><td>{d}</td><td>{v.n}</td><td>{money(v.total)}</td></tr>)}
+              {[...perDay.entries()].map(([d, v]) => <tr key={d}><td data-label="Dia">{d}</td><td data-label="Pedidos">{v.n}</td><td data-label="Valor estimado">{money(v.total)}</td></tr>)}
               {perDay.size === 0 && <tr><td colSpan={3} className="muted">Sem pedidos ainda.</td></tr>}
             </tbody>
           </table>
@@ -49,7 +49,7 @@ export default function Relatorio() {
           <table className="data">
             <thead><tr><th>Mesa</th><th>Valor estimado</th></tr></thead>
             <tbody>
-              {tables.map(([n, v]) => <tr key={n}><td>{n}</td><td>{money(v)}</td></tr>)}
+              {tables.map(([n, v]) => <tr key={n}><td data-label="Mesa">{n}</td><td data-label="Valor estimado">{money(v)}</td></tr>)}
               {tables.length === 0 && <tr><td colSpan={2} className="muted">Sem dados.</td></tr>}
             </tbody>
           </table>

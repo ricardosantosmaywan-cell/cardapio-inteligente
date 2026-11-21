@@ -128,8 +128,8 @@ export default function Equipe() {
             <tbody>
               {lista.map((m) => (
                 <tr key={m.id}>
-                  <td className="bold">{m.email}</td>
-                  <td className="right">
+                  <td className="bold" data-label="Garçom">{m.email}</td>
+                  <td className="right" data-label="">
                     <button className="btn sm" onClick={() => novaSenha(m)}><KeyRound className="icon" size={15} aria-hidden="true" />Nova senha</button>{" "}
                     <button className="btn sm danger" onClick={() => setRemover(m)}><Trash2 className="icon" size={15} aria-hidden="true" />Remover</button>
                   </td>
