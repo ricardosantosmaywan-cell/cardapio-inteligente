@@ -194,12 +194,14 @@ export function RoleGate({
     );
   }
 
-  const prefixed = nav.map((n) => ({ ...n, href: `${base}${n.href}` }));
+  // Na área do garçom, o dono (e o administrador) ganha um atalho para o painel de gestão; o garçom não o vê
+  const navFinal = area === "garcom" && (role === "dono" || role === "admin") ? [...nav, { href: "/dono", label: "Painel do dono ↗" }] : nav;
+  const prefixed = navFinal.map((n) => ({ ...n, href: `${base}${n.href}` }));
   const isOn = (href: string) => path === href || (href === `${base}/garcom` && path.startsWith(`${base}/garcom/mesa`));
 
   return (
     <div className={tablet ? "tablet" : undefined}>
-      <div className={`topbar no-print${nav.length > 3 ? " nav-muitos" : ""}`}>
+      <div className={`topbar no-print${navFinal.length > 3 ? " nav-muitos" : ""}`}>
         <div className="topbar-inner">
           <Link href={base} className="brandmark">
             <span className="logo" role="img" aria-label="Logotipo da loja">{initials(db.establishment.name)}</span>
