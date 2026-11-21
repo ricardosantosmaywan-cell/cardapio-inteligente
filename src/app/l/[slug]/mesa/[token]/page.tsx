@@ -92,8 +92,17 @@ function Customer() {
           <div className="note">
             <Lock size={16} aria-hidden="true" />
             <span>
-              [Espaço reservado para o aviso de privacidade — texto legal por definir.] Recolhemos apenas o nome e, se
-              quiser, o celular. Não usamos o celular para marketing.
+              Pedimos o seu nome e, se quiser, o celular, só para atender a sua mesa. O celular não é usado para marketing.{" "}
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: "pointer", fontWeight: 600 }}>Aviso de privacidade</summary>
+                <div className="stack" style={{ gap: 6, marginTop: 6 }}>
+                  <p><b>Quem trata os dados:</b> {storeName}, responsável pelo atendimento. O sistema Cardápio inteligente guarda os dados em nome do estabelecimento.</p>
+                  <p><b>Quais dados:</b> o seu nome, o celular (opcional) e o que pedir nesta mesa.</p>
+                  <p><b>Para quê:</b> identificar quem está na mesa, entregar os pedidos, fechar a conta e, se necessário, contatar você sobre este atendimento.</p>
+                  <p><b>Quem vê:</b> a equipe de {storeName} (garçom e dono) e os outros convidados aprovados da mesa, que veem apenas o seu nome e os pedidos. Os dados não são vendidos nem partilhados para publicidade.</p>
+                  <p><b>Os seus direitos (LGPD):</b> pode pedir acesso, correção ou exclusão dos seus dados falando com a equipe de {storeName}. O celular é opcional: sem ele, tudo funciona igual.</p>
+                </div>
+              </details>
             </span>
           </div>
         </form>
