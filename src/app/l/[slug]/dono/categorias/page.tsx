@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ArrowUp, ArrowDown, X } from "lucide-react";
 import { mutate, useDB } from "@/lib/store";
 import { uid } from "@/lib/utils";
 
@@ -45,8 +46,8 @@ export default function Categorias() {
                 onChange={(e) => mutate((d) => { d.categories.find((x) => x.id === c.id)!.name = e.target.value; })}
               />
               <span className="badge">{n} produto(s)</span>
-              <button className="btn sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir">↑</button>
-              <button className="btn sm" onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Descer">↓</button>
+              <button className="btn sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir"><ArrowUp className="icon" size={18} aria-hidden="true" /></button>
+              <button className="btn sm" onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Descer"><ArrowDown className="icon" size={18} aria-hidden="true" /></button>
               <button
                 className="btn sm danger"
                 disabled={n > 0}
@@ -54,7 +55,7 @@ export default function Categorias() {
                 onClick={() => mutate((d) => { d.categories = d.categories.filter((x) => x.id !== c.id); })}
                 aria-label="Remover categoria"
               >
-                ✕
+                <X className="icon" size={18} aria-hidden="true" />
               </button>
             </div>
           );

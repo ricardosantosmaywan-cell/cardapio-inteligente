@@ -1,3 +1,5 @@
+export type Currency = "BRL" | "EUR";
+
 export type Category = { id: string; name: string; order: number };
 
 export type Product = {
@@ -5,7 +7,7 @@ export type Product = {
   categoryId: string;
   name: string;
   description: string;
-  price: number; // cêntimos
+  price: number; // centavos
   emoji: string;
   photo?: string; // data URL enviada pelo dono
   available: boolean; // false = esgotado
@@ -17,8 +19,8 @@ export type Offer = {
   tag: string;
   emoji: string;
   photo?: string;
-  price: number; // cêntimos
-  normalPrice: number; // cêntimos
+  price: number; // centavos
+  normalPrice: number; // centavos
   days: number[]; // 0 = domingo ... 6 = sábado
   start: string; // "HH:MM"
   end: string;
@@ -69,7 +71,7 @@ export type Order = {
 
 export type DB = {
   version: number;
-  establishment: { name: string };
+  establishment: { name: string; currency?: Currency };
   categories: Category[];
   products: Product[];
   offers: Offer[];
