@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getSupabase, REMOTE } from "@/lib/supabase";
 import { Check, Copy, ExternalLink, KeyRound, LogOut, Pause, Pencil, Play, Plus, Store, UserRound } from "lucide-react";
-import { ClientOnly, EmptyState, ErrorState, Modal, Skeleton, useToast } from "@/components/ui";
+import { ClientOnly, Copiavel, EmptyState, ErrorState, Modal, Skeleton, useToast } from "@/components/ui";
 import { createLocal, listLocal, setAtivoLocal, setLimiteLocal, usadasLocal } from "@/lib/local-lojas";
 
 type Loja = { slug: string; nome: string; moeda: "BRL" | "EUR"; ativo: boolean; criado_em: string; donos: string[]; limite_mesas: number; mesas_usadas: number };
@@ -20,6 +20,7 @@ async function api<T>(path: string, method: string, body?: unknown): Promise<T> 
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 403) throw new Error("Sua sessão expirou ou você não tem permissão. Clique em Sair e entre de novo.");
   if (!r.ok) throw new Error(j.erro || "Erro inesperado.");
   return j as T;
 }
@@ -194,15 +195,6 @@ function LimiteMesas({ loja, onClose, onSalvar }: { loja: Loja; onClose: () => v
         </div>
       </form>
     </Modal>
-  );
-}
-
-function Copiavel({ valor, copia, onCopiar, label }: { valor: string; copia?: string; onCopiar: (t: string) => void; label: string }) {
-  return (
-    <div className="row" style={{ background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: "6px 6px 6px 14px" }}>
-      <code className="grow" style={{ background: "transparent", fontSize: "0.95rem", wordBreak: "break-all" }}>{valor}</code>
-      <button className="btn sm" onClick={() => onCopiar(copia ?? valor)} aria-label={`Copiar ${label}`}><Copy className="icon" size={16} aria-hidden="true" />Copiar</button>
-    </div>
   );
 }
 
@@ -414,7 +406,7 @@ function Admin() {
     return () => sub?.data.subscription.unsubscribe();
   }, [refresh]);
 
-  const sair = () => void getSupabase()?.auth.signOut();
+  const sair = () => void getSupabase()?.auth.signOut({ scope: "local" });
 
   if (!REMOTE) return <Painel email="modo local" backend={localBackend} />;
   if (st.state === "loading") return null;
