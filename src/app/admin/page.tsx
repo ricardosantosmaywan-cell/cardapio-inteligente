@@ -267,7 +267,7 @@ function Painel({ email, onSair, backend }: { email: string; onSair?: () => void
         {backend.local && <div className="alert info small">Modo local (sem Supabase): as lojas ficam guardadas só neste navegador. Serve para experimentar; para uso real configure o Supabase (ver README).</div>}
 
         {erro ? (
-          <div className="card"><ErrorState title="Não foi possível carregar as lojas" hint="Verifique a internet e tente de novo." onRetry={() => void carregar()} /></div>
+          <div className="card"><ErrorState title="Não foi possível carregar as lojas" hint={erro === "Erro inesperado." ? "Verifique a internet e tente de novo." : erro} onRetry={() => void carregar()} /></div>
         ) : !lojas ? (
           <div className="card stack" aria-busy="true" aria-label="Carregando"><Skeleton h={22} w="30%" /><Skeleton h={48} /><Skeleton h={48} /><Skeleton h={48} /></div>
         ) : lojas.length === 0 ? (

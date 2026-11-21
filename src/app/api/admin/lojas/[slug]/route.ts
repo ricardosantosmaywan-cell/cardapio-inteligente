@@ -1,9 +1,10 @@
-import { json, naoAutorizado, requireSuperAdmin, tempPassword } from "@/lib/server-admin";
+import { json, naoAutorizado, requireSuperAdmin, seguro, tempPassword } from "@/lib/server-admin";
 
 export const dynamic = "force-dynamic";
 
 /** Suspende/reativa a loja ou redefine a senha do dono (devolve a nova senha uma única vez). */
-export async function PATCH(req: Request, { params }: { params: { slug: string } }) {
+export const PATCH = (req: Request, ctx: { params: { slug: string } }) => seguro(() => alterar(req, ctx));
+async function alterar(req: Request, { params }: { params: { slug: string } }) {
   const ctx = await requireSuperAdmin(req);
   if (!ctx) return naoAutorizado();
   const { sb } = ctx;

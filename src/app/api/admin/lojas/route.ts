@@ -1,10 +1,11 @@
-import { adminClient, json, naoAutorizado, newToken, requireSuperAdmin, SLUG_RE, tempPassword } from "@/lib/server-admin";
+import { adminClient, json, naoAutorizado, newToken, requireSuperAdmin, seguro, SLUG_RE, tempPassword } from "@/lib/server-admin";
 import { makeStoreSeed } from "@/lib/seed";
 
 export const dynamic = "force-dynamic";
 
 /** Lista as lojas, com o e-mail do dono de cada uma. */
-export async function GET(req: Request) {
+export const GET = (req: Request) => seguro(() => listar(req));
+async function listar(req: Request) {
   const ctx = await requireSuperAdmin(req);
   if (!ctx) return naoAutorizado();
   const { sb } = ctx;
@@ -30,7 +31,8 @@ export async function GET(req: Request) {
 }
 
 /** Cria uma loja: linha em `lojas`, estado inicial com as mesas e, se houver e-mail, o login do dono. */
-export async function POST(req: Request) {
+export const POST = (req: Request) => seguro(() => criar(req));
+async function criar(req: Request) {
   const ctx = await requireSuperAdmin(req);
   if (!ctx) return naoAutorizado();
   const { sb } = ctx;

@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 export function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Faltam NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY no servidor.");
+  if (!url || !key) throw new Error("Falta configurar a chave secreta do servidor (SUPABASE_SERVICE_ROLE_KEY) na Vercel e fazer Redeploy.");
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
@@ -32,3 +32,13 @@ export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 export const naoAutorizado = () => json({ erro: "Sem permissão." }, 403);
+
+/** Corre o código da rota e devolve o erro real em JSON (ex.: variável de ambiente em falta). */
+export async function seguro(f: () => Promise<Response>): Promise<Response> {
+  try {
+    return await f();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro inesperado no servidor.";
+    return json({ erro: msg }, 500);
+  }
+}
