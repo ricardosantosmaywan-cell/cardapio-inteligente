@@ -1,13 +1,12 @@
 "use client";
 import { useParams } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Ban, Bell, Check, Clock, Eye, Lock, Minus, Plus, Receipt, ShoppingBag, UtensilsCrossed } from "lucide-react";
-import {
-  callWaiter, CartLine, decideGuest, getGuestId, joinTable, requestBill, sendOrder, useDB, useTick,
-} from "@/lib/store";
+import { useDB, useTick, type CartLine } from "@/lib/store";
+import { useMesa } from "@/lib/mesa";
 import { ClientOnly, EmptyState, ProductThumb, Thumb, useToast } from "@/components/ui";
 import { useLoja } from "@/components/loja";
-import { hhmm, ago, initials, itemDelivered, money, offerLive, orderTotal, sessionTotal } from "@/lib/utils";
+import { hhmm, ago, initials, itemDelivered, money, offerLive, orderTotal } from "@/lib/utils";
 
 const STATUS_LABEL = { enviado: "Enviado", visto: "Visto pelo garçom", entregue: "Entregue" } as const;
 const STATUS_BADGE = { enviado: "warn", visto: "info", entregue: "ok" } as const;
@@ -27,17 +26,11 @@ function Centered({ name, icon, title, children }: { name: string; icon?: ReactN
 function Customer() {
   const { token } = useParams<{ token: string }>();
   const { slug } = useLoja();
-  void slug;
-  const db = useDB();
+  const db = useDB(); // cardápio público (nome, categorias, produtos, ofertas)
+  const mesa = useMesa(slug, token); // o que é desta mesa: convidado, sessão, pedidos (vem de funções do servidor)
   useTick();
   const toast = useToast();
-
-  const [guestId, setGuestIdState] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setGuestIdState(getGuestId(token));
-    setReady(true);
-  }, [token]);
+  const { ready, table, guest, session, orders, pending: pendingGuests } = mesa;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -46,9 +39,6 @@ function Customer() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
-  const guest = guestId ? db.guests.find((g) => g.id === guestId) : undefined;
-  const session = guest ? db.sessions.find((s) => s.id === guest.sessionId) : undefined;
-  const table = session ? db.tables.find((t) => t.id === session.tableId) : db.tables.find((t) => t.token === token);
   const storeName = db.establishment.name;
 
   const categories = useMemo(() => [...db.categories].sort((a, b) => a.order - b.order), [db.categories]);
@@ -68,7 +58,7 @@ function Customer() {
     );
   }
 
-  const reset = () => setGuestIdState(null);
+  const reset = () => mesa.reset();
 
   /* ---------- Entrada (B1) ---------- */
   if (!guest || !session) {
@@ -81,10 +71,11 @@ function Customer() {
         </div>
         <form
           className="sheet-card"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            setGuestIdState(joinTable(token, name.trim(), phone.trim()));
+            const r = await mesa.join(name.trim(), phone.trim());
+            if (!r.ok) toast.show(r.erro === "mesa_cheia" ? "Esta mesa já está cheia. Fale com o garçom." : "Não foi possível entrar na mesa. Tente de novo.");
           }}
         >
           <div className="eyebrow">{table.name}</div>
@@ -146,10 +137,8 @@ function Customer() {
   }
 
   /* ---------- App da mesa ---------- */
-  const total = sessionTotal(db, session.id);
-  const orders = db.orders.filter((o) => o.sessionId === session.id).sort((a, b) => b.createdAt - a.createdAt);
+  const total = orders.reduce((sum, o) => sum + orderTotal(o), 0);
   const emAndamento = orders.filter((o) => o.status !== "entregue").length;
-  const pendingGuests = db.guests.filter((g) => g.sessionId === session.id && g.status === "pendente");
   const activeCat = cat ?? categories[0]?.id;
   const activeCatName = categories.find((c) => c.id === activeCat)?.name;
   const products = db.products.filter((p) => p.categoryId === activeCat);
@@ -169,14 +158,15 @@ function Customer() {
 
   const setQty = (id: string, d: number) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] ?? 0) + d) }));
 
-  const submit = () => {
+  const submit = async () => {
     if (!lines.length || blocked.length) return;
-    if (sendOrder(session.id, guest.id, guest.name, lines, note.trim())) {
+    const r = await mesa.send(lines, note.trim());
+    if (r.ok) {
       setCart({});
       setNote("");
       setView("orders");
       toast.show("Pedido enviado ao garçom");
-    } else toast.show("Não foi possível enviar. Reveja o carrinho.");
+    } else toast.show(r.erro === "mesa_encerrada" ? "A mesa foi encerrada." : "Não foi possível enviar. Reveja o carrinho.");
   };
 
   const billAsked = !!table.billRequestedAt;
@@ -203,7 +193,7 @@ function Customer() {
         <div className="total">{money(total)}</div>
         <button
           className="btn sm"
-          onClick={() => { callWaiter(table.id); toast.show("Garçom chamado"); }}
+          onClick={() => { void mesa.callWaiter(); toast.show("Garçom chamado"); }}
           aria-label="Chamar o garçom"
         >
           <Bell className="icon" size={17} aria-hidden="true" />Chamar
@@ -218,8 +208,8 @@ function Customer() {
                 <div key={g.id} className="row between">
                   <span><b>{g.name}</b> quer entrar na mesa.</span>
                   <span className="row">
-                    <button className="btn sm danger" onClick={() => decideGuest(g.id, false)}>Recusar</button>
-                    <button className="btn sm ok" onClick={() => decideGuest(g.id, true)}>Aprovar</button>
+                    <button className="btn sm danger" onClick={() => void mesa.decide(g.id, false)}>Recusar</button>
+                    <button className="btn sm ok" onClick={() => void mesa.decide(g.id, true)}>Aprovar</button>
                   </span>
                 </div>
               ))}
@@ -379,12 +369,12 @@ function Customer() {
                 <div className="alert ok stack">
                   <b>O garçom já vem</b>
                   <span>Seu pedido de conta foi enviado.</span>
-                  <button className="btn sm block" onClick={() => { requestBill(table.id); toast.show("Pedido de conta reenviado"); }}>
+                  <button className="btn sm block" onClick={() => { void mesa.requestBill(); toast.show("Pedido de conta reenviado"); }}>
                     Pedir outra vez
                   </button>
                 </div>
               ) : (
-                <button className="btn block" onClick={() => requestBill(table.id)}>
+                <button className="btn block" onClick={() => void mesa.requestBill()}>
                   <Receipt className="icon" size={18} aria-hidden="true" />Pedir a conta
                 </button>
               )}
