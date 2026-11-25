@@ -1,4 +1,4 @@
-import type { Currency, DB, Offer, Order, OrderItem, Session, Table, TableState } from "./types";
+import type { Currency, DB, KitchenConfig, KitchenStatus, Offer, Order, OrderItem, Session, Table, TableState } from "./types";
 
 /** Moeda e idioma vêm da configuração da loja (padrão: Real, pt-BR). */
 let CUR: Currency = "BRL";
@@ -136,3 +136,38 @@ export const toMoneyInput = (c: number) => (c / 100).toFixed(2).replace(".", ","
 
 /** Pedidos antigos só tinham o estado do pedido inteiro. */
 export const itemDelivered = (o: Order, i: OrderItem) => i.delivered ?? o.status === "entregue";
+
+/* ---------- Cozinha ---------- */
+
+export const KITCHEN_ALERT_DEFAULT = 15;
+
+/** Configuração da tela da cozinha desta loja (desligada por defeito). */
+export const kitchenCfg = (db: DB): KitchenConfig => ({
+  enabled: db.establishment.kitchen?.enabled === true,
+  alertMin: db.establishment.kitchen?.alertMin ?? KITCHEN_ALERT_DEFAULT,
+});
+
+/** Pedidos sem estado de cozinha contam como "novo". */
+export const kitchenStatus = (o: Pick<Order, "kitchen">): KitchenStatus => o.kitchen ?? "novo";
+
+/**
+ * O item passa pela cozinha? Não, se a categoria do produto estiver marcada "não passa pela cozinha"
+ * (ex.: bebidas). Ofertas e produtos que já não existem passam (mesma regra que app_private.item_cozinha).
+ */
+export const itemToKitchen = (db: DB, i: { productId: string }) => {
+  if (i.productId.startsWith("offer:")) return true;
+  const p = db.products.find((x) => x.id === i.productId);
+  const c = p ? db.categories.find((x) => x.id === p.categoryId) : undefined;
+  return c?.skipKitchen !== true;
+};
+
+/** O pedido tem algum item ativo que passa pela cozinha. */
+export const orderHasKitchen = (db: DB, o: Pick<Order, "items">) => o.items.some((i) => !i.cancelled && itemToKitchen(db, i));
+
+/** A cozinha está ligada e este pedido passa por ela. */
+export const inKitchen = (db: DB, o: Pick<Order, "items">) => kitchenCfg(db).enabled && orderHasKitchen(db, o);
+
+export const KITCHEN_LABEL: Record<KitchenStatus, string> = { novo: "Novo", preparo: "Em preparação", pronto: "Pronto" };
+
+/** Minutos inteiros desde `ts`. */
+export const minutesSince = (ts: number, now = Date.now()) => Math.max(0, Math.floor((now - ts) / 60000));

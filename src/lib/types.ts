@@ -1,6 +1,7 @@
 export type Currency = "BRL" | "EUR";
 
-export type Category = { id: string; name: string; order: number };
+/** skipKitchen: os produtos desta categoria (ex.: bebidas) não passam pela tela da cozinha. */
+export type Category = { id: string; name: string; order: number; skipKitchen?: boolean };
 
 export type Product = {
   id: string;
@@ -58,6 +59,9 @@ export type OrderItem = {
   delivered?: boolean; // entregue à mesa (item a item)
 };
 
+/** Estado do pedido na cozinha (só conta quando a loja tem a tela da cozinha ligada). */
+export type KitchenStatus = "novo" | "preparo" | "pronto";
+
 export type Order = {
   id: string;
   sessionId: string;
@@ -67,11 +71,17 @@ export type Order = {
   status: OrderStatus;
   note: string;
   items: OrderItem[];
+  kitchen?: KitchenStatus; // em falta = "novo"
+  prepStartedAt?: number;
+  readyAt?: number;
 };
+
+/** Tela da cozinha: opcional por loja. alertMin = minutos de espera a partir dos quais o pedido fica destacado. */
+export type KitchenConfig = { enabled: boolean; alertMin: number };
 
 export type DB = {
   version: number;
-  establishment: { name: string; currency?: Currency };
+  establishment: { name: string; currency?: Currency; kitchen?: KitchenConfig };
   categories: Category[];
   products: Product[];
   offers: Offer[];

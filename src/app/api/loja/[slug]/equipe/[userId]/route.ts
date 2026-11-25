@@ -3,20 +3,23 @@ import { adminClient, json, naoAutorizado, requireDonoOuAdmin, seguro, tempPassw
 export const dynamic = "force-dynamic";
 type Ctx = { params: { slug: string; userId: string } };
 
-/** Garante que o alvo é mesmo garçom DESTA loja (nunca o dono, nem de outra loja). */
-async function garcomDaLoja(sb: ReturnType<typeof adminClient>, slug: string, userId: string) {
-  const { data } = await sb.from("membros").select("papel").eq("user_id", userId).eq("loja", slug).eq("papel", "garcom").maybeSingle();
+/** Papéis que o dono gere em Equipe. Nunca o dono, nem membros de outra loja. */
+const PAPEIS = ["garcom", "cozinha"];
+
+/** Garante que o alvo é garçom ou cozinha DESTA loja (nunca o dono, nem de outra loja). */
+async function membroDaEquipe(sb: ReturnType<typeof adminClient>, slug: string, userId: string) {
+  const { data } = await sb.from("membros").select("papel").eq("user_id", userId).eq("loja", slug).in("papel", PAPEIS).maybeSingle();
   return !!data;
 }
 
-/** Nova senha temporária para um garçom. Só se a conta não for usada noutra loja ou como administrador. */
+/** Nova senha temporária. Só se a conta não for usada noutra loja ou como administrador. */
 export const PATCH = (req: Request, ctx: Ctx) =>
   seguro(async () => {
     const auth = await requireDonoOuAdmin(req, ctx.params.slug);
     if (!auth) return naoAutorizado();
     const { sb } = auth;
     const { slug, userId } = ctx.params;
-    if (!(await garcomDaLoja(sb, slug, userId))) return json({ erro: "Garçom não encontrado nesta loja." }, 404);
+    if (!(await membroDaEquipe(sb, slug, userId))) return json({ erro: "Pessoa não encontrada na equipe desta loja." }, 404);
 
     const { count: outras } = await sb.from("membros").select("user_id", { count: "exact", head: true }).eq("user_id", userId).neq("loja", slug);
     const { data: sa } = await sb.from("super_admins").select("user_id").eq("user_id", userId).maybeSingle();
@@ -32,15 +35,15 @@ export const PATCH = (req: Request, ctx: Ctx) =>
     return json({ senhaTemporaria: senha });
   });
 
-/** Remove o garçom da loja (corta o acesso dele a esta loja; a conta não é apagada). */
+/** Remove a pessoa da equipe (corta o acesso a esta loja; a conta não é apagada). */
 export const DELETE = (req: Request, ctx: Ctx) =>
   seguro(async () => {
     const auth = await requireDonoOuAdmin(req, ctx.params.slug);
     if (!auth) return naoAutorizado();
     const { sb } = auth;
     const { slug, userId } = ctx.params;
-    if (!(await garcomDaLoja(sb, slug, userId))) return json({ erro: "Garçom não encontrado nesta loja." }, 404);
-    const { error } = await sb.from("membros").delete().eq("user_id", userId).eq("loja", slug).eq("papel", "garcom");
+    if (!(await membroDaEquipe(sb, slug, userId))) return json({ erro: "Pessoa não encontrada na equipe desta loja." }, 404);
+    const { error } = await sb.from("membros").delete().eq("user_id", userId).eq("loja", slug).in("papel", PAPEIS);
     if (error) return json({ erro: error.message }, 500);
     return json({ ok: true });
   });

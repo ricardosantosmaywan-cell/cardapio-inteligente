@@ -1,12 +1,12 @@
 "use client";
 import { useParams } from "next/navigation";
 import { ReactNode, useMemo, useState } from "react";
-import { Ban, Bell, Check, Clock, Eye, Lock, Minus, Plus, Receipt, ShoppingBag, UtensilsCrossed } from "lucide-react";
+import { Ban, Bell, Check, CircleCheck, Clock, Eye, Flame, Lock, Minus, Plus, Receipt, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { useDB, useTick, type CartLine } from "@/lib/store";
 import { useMesa } from "@/lib/mesa";
 import { ClientOnly, EmptyState, ProductThumb, Thumb, useToast } from "@/components/ui";
 import { useLoja } from "@/components/loja";
-import { hhmm, ago, initials, itemDelivered, money, offerLive, orderTotal } from "@/lib/utils";
+import { hhmm, ago, initials, inKitchen, itemDelivered, kitchenStatus, money, offerLive, orderTotal } from "@/lib/utils";
 
 const STATUS_LABEL = { enviado: "Enviado", visto: "Visto pelo garçom", entregue: "Entregue" } as const;
 const STATUS_BADGE = { enviado: "warn", visto: "info", entregue: "ok" } as const;
@@ -356,10 +356,18 @@ function Customer() {
               <div key={o.id} className="card order-card">
                 <div className="head">
                   <span><b>{o.author}</b> <span className="muted small">{hhmm(o.createdAt)} · {ago(o.createdAt)}</span></span>
-                  <span className={`badge ${STATUS_BADGE[o.status]}`}>
-                    {o.status === "entregue" ? <Check size={14} aria-hidden="true" /> : o.status === "visto" ? <Eye size={14} aria-hidden="true" /> : <Clock size={14} aria-hidden="true" />}
-                    {STATUS_LABEL[o.status]}
-                  </span>
+                  {(() => {
+                    // Com a cozinha ligada, o cliente vê "Em preparação" e "Pronto" até o garçom entregar.
+                    const k = o.status !== "entregue" && inKitchen(db, o) ? kitchenStatus(o) : null;
+                    if (k === "preparo") return <span className="badge info" role="status"><Flame size={14} aria-hidden="true" />Em preparação</span>;
+                    if (k === "pronto") return <span className="badge ok" role="status"><CircleCheck size={14} aria-hidden="true" />Pronto, já vai para a mesa</span>;
+                    return (
+                      <span className={`badge ${STATUS_BADGE[o.status]}`}>
+                        {o.status === "entregue" ? <Check size={14} aria-hidden="true" /> : o.status === "visto" ? <Eye size={14} aria-hidden="true" /> : <Clock size={14} aria-hidden="true" />}
+                        {STATUS_LABEL[o.status]}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {o.items.map((i) => (
                   <div key={i.id} className={`line${i.cancelled ? " cancelled" : ""}`}>
