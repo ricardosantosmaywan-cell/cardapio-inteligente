@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { makeSeed, makeStoreSeed, SEED_VERSION } from "./seed";
-import type { DB, Guest, Order, OrderItem, Product } from "./types";
+import type { DB, Guest, KitchenConfig, KitchenStatus, Order, OrderItem, Product } from "./types";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabase, REMOTE } from "./supabase";
 import { itemDelivered, offerLive, openSession, token, uid, withIds } from "./utils";
@@ -534,9 +534,48 @@ export const setAvailable = (productId: string, available: boolean) =>
     if (p) p.available = available;
   });
 
+/* ---------- Cozinha ---------- */
+
+/** Mesma regra da função cozinha_marcar no Supabase (usada no modo local). */
+export const setKitchenStatus = (orderId: string, estado: KitchenStatus) =>
+  mutate((db) => {
+    if (db.establishment.kitchen?.enabled !== true) return;
+    const o = db.orders.find((x) => x.id === orderId);
+    if (!o || o.status === "entregue") return;
+    const agora = Date.now();
+    o.kitchen = estado;
+    if (estado === "novo") {
+      delete o.prepStartedAt;
+      delete o.readyAt;
+    } else if (estado === "preparo") {
+      o.prepStartedAt ??= agora;
+      delete o.readyAt;
+    } else {
+      o.prepStartedAt ??= agora;
+      o.readyAt = agora;
+    }
+  });
+
+/** Só o dono: liga ou desliga a tela da cozinha e define o limite de espera. */
+export const setKitchenConfig = (cfg: KitchenConfig) =>
+  mutate((db) => {
+    // Primeira vez que liga: as categorias "Bebidas" ficam fora da cozinha (o dono muda em Categorias).
+    if (cfg.enabled && !db.establishment.kitchen) {
+      for (const c of db.categories) if (c.skipKitchen === undefined && /bebida/i.test(c.name)) c.skipKitchen = true;
+    }
+    db.establishment.kitchen = { enabled: cfg.enabled, alertMin: Math.min(120, Math.max(1, Math.round(cfg.alertMin))) };
+  });
+
+/** Só o dono: os produtos desta categoria passam (ou não) pela tela da cozinha. */
+export const setCategoryKitchen = (categoryId: string, vaiParaCozinha: boolean) =>
+  mutate((db) => {
+    const c = db.categories.find((x) => x.id === categoryId);
+    if (c) c.skipKitchen = !vaiParaCozinha;
+  });
+
 /* ---------- Papel (login simulado) ---------- */
 
-export type Role = "garcom" | "dono";
+export type Role = "garcom" | "dono" | "cozinha";
 const RKEY = "cardapio-mock-role";
 export const getRole = (): Role | null => {
   try {

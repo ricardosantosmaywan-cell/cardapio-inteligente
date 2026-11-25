@@ -3,16 +3,26 @@ import { useState } from "react";
 import { Plus, Camera } from "lucide-react";
 import { mutate, useDB } from "@/lib/store";
 import { Modal, Thumb, EmptyState, Switch } from "@/components/ui";
-import { compressImage, currencySymbol, DAYS, money, offerLive, parseMoney, toMoneyInput, uid } from "@/lib/utils";
+import { useLoja } from "@/components/loja";
+import { removePhoto, usePhotoUploads } from "@/lib/fotos";
+import { currencySymbol, DAYS, money, offerLive, parseMoney, toMoneyInput, uid } from "@/lib/utils";
 import type { Offer } from "@/lib/types";
 
 type Draft = Omit<Offer, "price" | "normalPrice"> & { price: string; normalPrice: string };
 
 export default function Ofertas() {
   const db = useDB();
+  const { slug } = useLoja();
+  const fotos = usePhotoUploads(slug);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [err, setErr] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const offers = [...db.offers].sort((a, b) => a.order - b.order);
+
+  const fechar = () => {
+    fotos.cancel(); // apaga as imagens enviadas neste formulário e não guardadas
+    setDraft(null);
+  };
 
   const blank = (): Draft => ({
     id: "", title: "", tag: "Hoje", emoji: "🍲", price: "", normalPrice: "", days: [0, 1, 2, 3, 4, 5, 6],
@@ -26,11 +36,13 @@ export default function Ofertas() {
     if (!draft.title.trim()) return setErr("Informe o título da oferta.");
     if (!Number.isFinite(price) || !Number.isFinite(normalPrice)) return setErr("Informe o preço da oferta e o preço normal.");
     if (!draft.days.length) return setErr("Escolha pelo menos um dia.");
+    const original = draft.id ? db.offers.find((o) => o.id === draft.id)?.photo : undefined;
     mutate((d) => {
       const data = { ...draft, title: draft.title.trim(), price, normalPrice };
       if (draft.id) Object.assign(d.offers.find((o) => o.id === draft.id)!, data);
       else d.offers.push({ ...data, id: uid("o") });
     });
+    fotos.finish(draft.photo, original); // apaga a imagem trocada ou removida e as enviadas e não usadas
     setDraft(null);
   };
 
@@ -62,7 +74,7 @@ export default function Ofertas() {
               <div className="row wrap">
                 <button className="btn sm" onClick={() => { setErr(""); setDraft({ ...o, price: toMoneyInput(o.price), normalPrice: toMoneyInput(o.normalPrice) }); }}>Editar</button>
                 <button className="btn sm" onClick={() => mutate((d) => { const x = d.offers.find((y) => y.id === o.id)!; x.active = !x.active; })}>{o.active ? "Desativar" : "Ativar"}</button>
-                <button className="btn sm danger" onClick={() => confirm("Remover esta oferta?") && mutate((d) => { d.offers = d.offers.filter((x) => x.id !== o.id); })}>Remover</button>
+                <button className="btn sm danger" onClick={() => { if (!confirm("Remover esta oferta?")) return; mutate((d) => { d.offers = d.offers.filter((x) => x.id !== o.id); }); void removePhoto(o.photo); }}>Remover</button>
               </div>
             </div>
           );
@@ -71,7 +83,7 @@ export default function Ofertas() {
       </div>
 
       {draft && preview && (
-        <Modal title={draft.id ? "Editar oferta" : "Nova oferta"} onClose={() => setDraft(null)}>
+        <Modal title={draft.id ? "Editar oferta" : "Nova oferta"} onClose={fechar}>
           <div className="offer" aria-label="Pré-visualização">
             <Thumb emoji={preview.emoji} photo={preview.photo} />
             <div className="grow stack" style={{ gap: 4 }}>
@@ -81,10 +93,23 @@ export default function Ofertas() {
             </div>
           </div>
           <div className="row wrap">
-            <label className="btn" style={{ cursor: "pointer" }}><Camera className="icon" size={18} aria-hidden="true" /> Enviar imagem
-              <input type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setDraft({ ...draft, photo: await compressImage(f) }); }} />
+            <label className="btn" style={{ cursor: enviando ? "wait" : "pointer", opacity: enviando ? 0.6 : 1 }}><Camera className="icon" size={18} aria-hidden="true" /> {enviando ? "A enviar…" : "Enviar imagem"}
+              <input type="file" accept="image/*" hidden disabled={enviando} onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setEnviando(true);
+                setErr("");
+                try {
+                  const url = await fotos.upload(f, draft.photo);
+                  setDraft((d) => d && { ...d, photo: url });
+                } catch (x) {
+                  setErr(fotos.errorText(x));
+                }
+                setEnviando(false);
+              }} />
             </label>
-            {draft.photo && <button className="btn sm ghost" onClick={() => setDraft({ ...draft, photo: undefined })}>Remover imagem</button>}
+            {draft.photo && <button className="btn sm ghost" onClick={() => { fotos.discard(draft.photo); setDraft({ ...draft, photo: undefined }); }}>Remover imagem</button>}
             <div className="field" style={{ width: 90 }}><label htmlFor="oe">Ícone</label><input id="oe" className="input" maxLength={4} value={draft.emoji} onChange={(e) => setDraft({ ...draft, emoji: e.target.value })} /></div>
           </div>
           <div className="row">
@@ -111,7 +136,7 @@ export default function Ofertas() {
           </div>
           <Switch label="Ativa" checked={draft.active} onChange={(v) => setDraft({ ...draft, active: v })} />
           {err && <div className="alert bad" role="alert">{err}</div>}
-          <button className="btn primary block" onClick={save}>Salvar oferta</button>
+          <button className="btn primary block" onClick={save} disabled={enviando}>Salvar oferta</button>
         </Modal>
       )}
     </main>

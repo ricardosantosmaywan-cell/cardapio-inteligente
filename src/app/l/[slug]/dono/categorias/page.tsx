@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import { ArrowUp, ArrowDown, X } from "lucide-react";
-import { mutate, useDB } from "@/lib/store";
-import { uid } from "@/lib/utils";
+import { mutate, setCategoryKitchen, useDB } from "@/lib/store";
+import { Switch } from "@/components/ui";
+import { kitchenCfg, uid } from "@/lib/utils";
 
 export default function Categorias() {
   const db = useDB();
   const [name, setName] = useState("");
   const cats = [...db.categories].sort((a, b) => a.order - b.order);
+  const cozinhaOn = kitchenCfg(db).enabled;
 
   const move = (i: number, dir: -1 | 1) =>
     mutate((d) => {
@@ -22,6 +24,12 @@ export default function Categorias() {
     <main className="shell" style={{ maxWidth: 720 }}>
       <h1>Categorias</h1>
       <p className="muted small">A ordem aqui é a ordem das categorias no cardápio do cliente.</p>
+      {cozinhaOn && (
+        <p className="muted small">
+          <b>Cozinha:</b> desligue nas categorias que o garçom serve sozinho (por exemplo, bebidas). Esses produtos não aparecem
+          na tela da cozinha e o garçom entrega-os sem esperar por &quot;pronto&quot;.
+        </p>
+      )}
       <form
         className="row"
         onSubmit={(e) => {
@@ -38,7 +46,7 @@ export default function Categorias() {
         {cats.map((c, i) => {
           const n = db.products.filter((p) => p.categoryId === c.id).length;
           return (
-            <div key={c.id} className="card row">
+            <div key={c.id} className="card row wrap">
               <input
                 className="input grow"
                 value={c.name}
@@ -46,6 +54,15 @@ export default function Categorias() {
                 onChange={(e) => mutate((d) => { d.categories.find((x) => x.id === c.id)!.name = e.target.value; })}
               />
               <span className="badge">{n} produto(s)</span>
+              {cozinhaOn && (
+                <Switch
+                  checked={c.skipKitchen !== true}
+                  onChange={(v) => setCategoryKitchen(c.id, v)}
+                  label="Cozinha"
+                  ariaLabel={`${c.name} passa pela cozinha`}
+                  stateText={c.skipKitchen ? "não passa" : "passa"}
+                />
+              )}
               <button className="btn sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir"><ArrowUp className="icon" size={18} aria-hidden="true" /></button>
               <button className="btn sm" onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Descer"><ArrowDown className="icon" size={18} aria-hidden="true" /></button>
               <button

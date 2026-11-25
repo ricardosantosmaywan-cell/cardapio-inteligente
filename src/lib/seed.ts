@@ -86,3 +86,21 @@ export function makeStoreSeed(opts: { name: string; currency: Currency; tableNam
     orders: [],
   };
 }
+
+/**
+ * Demonstração para apresentar a clientes (modo local): "Hamburgueria do Zé".
+ * Valores fictícios; as fotos vêm de public/demo/hamburgueria-do-ze/.
+ * Os ids de categoria batem com makeStoreSeed: c1 Lanches, c2 Porções, c5 Bebidas.
+ */
+export const DEMO_ZE_SLUG = "hamburgueria-do-ze";
+const DEMO_ZE_PHOTO = (f: string) => `/demo/hamburgueria-do-ze/${f}`;
+export const DEMO_ZE_PRODUCTS: DB["products"] = [
+  { id: "z1", categoryId: "c1", name: "Cheeseburger Clássico", description: "Hambúrguer de 180 g, queijo cheddar, alface, tomate, cebola roxa e molho da casa", price: 2490, emoji: "🍔", photo: DEMO_ZE_PHOTO("cheeseburger-classico.jpg"), available: true },
+  { id: "z2", categoryId: "c1", name: "Duplo Cheddar", description: "Dois hambúrgueres de 90 g, dobro de cheddar, picles e cebola fatiada", price: 3290, emoji: "🍔", photo: DEMO_ZE_PHOTO("duplo-cheddar.jpg"), available: true },
+  { id: "z3", categoryId: "c1", name: "Bacon Onion", description: "Hambúrguer de 180 g, bacon crocante, anéis de cebola empanados e cheddar", price: 3490, emoji: "🥓", photo: DEMO_ZE_PHOTO("bacon-onion.jpg"), available: true },
+  { id: "z4", categoryId: "c1", name: "Frango Crocante", description: "Filé de frango empanado e crocante, cheddar, tomate, alface e maionese da casa", price: 2790, emoji: "🍗", photo: DEMO_ZE_PHOTO("frango-crocante.jpg"), available: true },
+  { id: "z5", categoryId: "c2", name: "Batata frita", description: "Porção crocante com sal e ervas, para partilhar", price: 1290, emoji: "🍟", available: true },
+  { id: "z6", categoryId: "c2", name: "Anéis de cebola", description: "Anéis de cebola empanados e fritos, com molho barbecue", price: 1490, emoji: "🧅", available: true },
+  { id: "z7", categoryId: "c5", name: "Refrigerante lata 350 ml", description: "Gelado, à escolha entre os sabores disponíveis", price: 600, emoji: "🥤", photo: DEMO_ZE_PHOTO("refrigerante.jpg"), available: true },
+  { id: "z8", categoryId: "c5", name: "Suco de laranja natural", description: "Feito na hora, copo de 400 ml com gelo", price: 900, emoji: "🍊", photo: DEMO_ZE_PHOTO("suco-laranja.jpg"), available: true },
+];

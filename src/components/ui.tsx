@@ -13,16 +13,16 @@ export function ClientOnly({ children }: { children: ReactNode }) {
 export function Thumb({ emoji, photo, large, xl }: { emoji: string; photo?: string; large?: boolean; xl?: boolean }) {
   return (
     <div className={`thumb${large ? " lg" : ""}${xl ? " xl" : ""}`} aria-hidden="true">
-      {photo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photo} alt="" /> : emoji}
+      {photo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photo} alt="" loading="lazy" decoding="async" /> : emoji}
     </div>
   );
 }
 
 /** Interruptor acessível (role="switch"). */
-export function Switch({ checked, onChange, label, stateText }: { checked: boolean; onChange: (v: boolean) => void; label: string; stateText?: string }) {
+export function Switch({ checked, onChange, label, stateText, ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; label: string; stateText?: string; ariaLabel?: string }) {
   return (
     <div className="switch">
-      <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} />
+      <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel ?? label} onClick={() => onChange(!checked)} />
       <span>{label}</span>
       {stateText && <span className="muted small">{stateText}</span>}
     </div>

@@ -3,7 +3,7 @@
  * Administração em MODO LOCAL (sem Supabase): as lojas ficam registadas no localStorage
  * deste navegador. Serve para ver e experimentar a tela /admin; não é partilhado entre aparelhos.
  */
-import { makeStoreSeed } from "./seed";
+import { DEMO_ZE_PRODUCTS, DEMO_ZE_SLUG, makeStoreSeed } from "./seed";
 
 export type LojaLocal = { slug: string; nome: string; moeda: "BRL" | "EUR"; ativo: boolean; criado_em: string; limite_mesas: number };
 
@@ -59,6 +59,8 @@ export function createLocal(i: { nome: string; slug: string; moeda: "BRL" | "EUR
     tableNames: Array.from({ length: i.mesas }, (_, n) => `Mesa ${n + 1}`),
     tokens,
   });
+  // Demonstração "Hamburgueria do Zé": cardápio fictício com fotos (ver seed.ts).
+  if (i.slug === DEMO_ZE_SLUG) seed.products = DEMO_ZE_PRODUCTS;
   localStorage.setItem(`cardapio-db-${i.slug}`, JSON.stringify(seed));
   write([{ slug: i.slug, nome, moeda: i.moeda, ativo: true, criado_em: new Date().toISOString(), limite_mesas: i.mesas }, ...read()]);
 }

@@ -4,7 +4,7 @@ import { resetDemo, useDB, useTick } from "@/lib/store";
 import { ClientOnly, Qr, mesaUrl } from "@/components/ui";
 import { useLoja } from "@/components/loja";
 import { REMOTE } from "@/lib/supabase";
-import { openSession, tableState } from "@/lib/utils";
+import { kitchenCfg, openSession, tableState } from "@/lib/utils";
 
 const STATE_LABEL = { livre: "Livre", ocupada: "Ocupada", conta: "Pediu a conta", chamou: "Chamou" } as const;
 
@@ -30,6 +30,13 @@ function Entrada() {
             <p className="muted small">Produtos, fotos, categorias, ofertas do dia, mesas e QR codes.</p>
             <span className="btn primary">Entrar como dono</span>
           </Link>
+          {kitchenCfg(db).enabled && (
+            <Link href={`${base}/cozinha`} className="card stack">
+              <h2>🍳 Cozinha</h2>
+              <p className="muted small">Pedidos a preparar, por ordem de chegada: novo, em preparação e pronto.</p>
+              <span className="btn primary">Entrar na cozinha</span>
+            </Link>
+          )}
         </section>
       </main>
     </div>
@@ -67,6 +74,13 @@ function Demo() {
             <p className="muted small">Produtos, fotos, categorias, ofertas do dia, mesas e QR codes.</p>
             <span className="btn primary">Abrir painel do dono ↗</span>
           </Link>
+          {kitchenCfg(db).enabled && (
+            <Link href={`${base}/cozinha`} className="card stack" target="_blank">
+              <h2>🍳 Cozinha (ecrã grande)</h2>
+              <p className="muted small">Pedidos a preparar: novo, em preparação e pronto. O garçom é avisado quando fica pronto.</p>
+              <span className="btn primary">Abrir tela da cozinha ↗</span>
+            </Link>
+          )}
         </section>
 
         <section className="stack">

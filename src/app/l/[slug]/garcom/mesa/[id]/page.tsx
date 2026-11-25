@@ -8,7 +8,10 @@ import {
 } from "@/lib/store";
 import { EmptyState, Modal, ProductThumb, useToast } from "@/components/ui";
 import { useLoja } from "@/components/loja";
-import { ago, money, hhmm, itemDelivered, openSession, orderTotal, sessionTotal, tableState } from "@/lib/utils";
+import { ago, money, hhmm, inKitchen, itemDelivered, itemToKitchen, KITCHEN_LABEL, kitchenStatus, openSession, orderTotal, sessionTotal, tableState } from "@/lib/utils";
+import type { Order } from "@/lib/types";
+
+const KITCHEN_BADGE = { novo: "", preparo: "info", pronto: "ok" } as const;
 
 const STATUS = { enviado: "Enviado", visto: "Visto", entregue: "Entregue" } as const;
 
@@ -21,6 +24,7 @@ export default function DetalheMesa() {
   const [launch, setLaunch] = useState(false);
   const [confirm, setConfirm] = useState<"fechar" | "qr" | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ orderId: string; itemId: string; name: string } | null>(null);
+  const [early, setEarly] = useState<{ orderId: string; itemId: string | null; what: string; estado: "novo" | "preparo" | "pronto" } | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
@@ -40,6 +44,18 @@ export default function DetalheMesa() {
   const orders = session ? db.orders.filter((o) => o.sessionId === session.id).sort((a, b) => b.createdAt - a.createdAt) : [];
   const total = session ? sessionTotal(db, session.id) : 0;
   const cats = [...db.categories].sort((a, b) => a.order - b.order);
+  // Entregar antes de a cozinha marcar "pronto": pede confirmação (só para itens que passam pela cozinha).
+  const aindaNaCozinha = (o: Order) => inKitchen(db, o) && kitchenStatus(o) !== "pronto";
+  const entregarItem = (o: Order, itemId: string, name: string) => {
+    const it = o.items.find((i) => i.id === itemId);
+    if (it && aindaNaCozinha(o) && itemToKitchen(db, it)) setEarly({ orderId: o.id, itemId, what: name, estado: kitchenStatus(o) });
+    else setItemDelivered(o.id, itemId, true);
+  };
+  const entregarTudo = (o: Order) => {
+    const faltaCozinha = o.items.some((i) => !i.cancelled && !itemDelivered(o, i) && itemToKitchen(db, i));
+    if (aindaNaCozinha(o) && faltaCozinha) setEarly({ orderId: o.id, itemId: null, what: "o pedido inteiro", estado: kitchenStatus(o) });
+    else setOrderStatus(o.id, "entregue");
+  };
 
   const lines = Object.entries(cart).filter(([, q]) => q > 0).map(([productId, qty]) => ({ productId, qty }));
   const launchTotal = lines.reduce((s, l) => s + (db.products.find((p) => p.id === l.productId)?.price ?? 0) * l.qty, 0);
@@ -127,6 +143,12 @@ export default function DetalheMesa() {
                     {STATUS[o.status]}
                   </span>
                 </div>
+                {inKitchen(db, o) && o.status !== "entregue" && (
+                  <span className={`badge ${KITCHEN_BADGE[kitchenStatus(o)]}`} style={{ alignSelf: "flex-start" }}>
+                    Cozinha: {KITCHEN_LABEL[kitchenStatus(o)].toLowerCase()}
+                    {kitchenStatus(o) === "pronto" && o.readyAt ? ` ${ago(o.readyAt)}` : ""}
+                  </span>
+                )}
                 <div>
                   {o.items.map((i) => {
                     const done = itemDelivered(o, i);
@@ -145,7 +167,7 @@ export default function DetalheMesa() {
                         <span className="vl">{money(i.price * i.qty)}</span>
                         <button
                           className={`btn sm ${done ? "ok" : ""}`}
-                          onClick={() => setItemDelivered(o.id, i.id, !done)}
+                          onClick={() => (done ? setItemDelivered(o.id, i.id, false) : entregarItem(o, i.id, i.name))}
                           aria-label={done ? `Desmarcar entrega de ${i.name}` : `Marcar ${i.name} como entregue`}
                         >
                           {done ? <><Check className="icon" size={16} aria-hidden="true" />Entregue</> : "Entregar"}
@@ -169,7 +191,7 @@ export default function DetalheMesa() {
                 </div>
                 <div className="row wrap">
                   {o.status === "enviado" && <button className="btn" onClick={() => setOrderStatus(o.id, "visto")}><Eye className="icon" size={20} aria-hidden="true" />Marcar visto</button>}
-                  {o.items.some((i) => !i.cancelled && !itemDelivered(o, i)) && <button className="btn ok" onClick={() => setOrderStatus(o.id, "entregue")}><CheckCheck className="icon" size={20} aria-hidden="true" />Entregar tudo</button>}
+                  {o.items.some((i) => !i.cancelled && !itemDelivered(o, i)) && <button className="btn ok" onClick={() => entregarTudo(o)}><CheckCheck className="icon" size={20} aria-hidden="true" />Entregar tudo</button>}
                 </div>
               </div>
             ))}
@@ -239,6 +261,28 @@ export default function DetalheMesa() {
           <div className="row">
             <button className="btn grow" onClick={() => setCancelTarget(null)}>Não, manter</button>
             <button className="btn danger grow" onClick={() => { cancelItem(cancelTarget.orderId, cancelTarget.itemId); setCancelTarget(null); toast.show("Item cancelado"); }}>Sim, cancelar</button>
+          </div>
+        </Modal>
+      )}
+      {early && (
+        <Modal title="A cozinha ainda não acabou" onClose={() => setEarly(null)}>
+          <p>
+            Este pedido está <b>{KITCHEN_LABEL[early.estado].toLowerCase()}</b> na cozinha e ainda não foi marcado como pronto.
+            Quer entregar <b>{early.what}</b> mesmo assim?
+          </p>
+          <p className="muted small">Se entregar, o pedido sai da tela da cozinha. As bebidas (categorias fora da cozinha) entregam-se sem este aviso.</p>
+          <div className="row">
+            <button className="btn grow" onClick={() => setEarly(null)}>Esperar pela cozinha</button>
+            <button
+              className="btn ok grow"
+              onClick={() => {
+                if (early.itemId) setItemDelivered(early.orderId, early.itemId, true);
+                else setOrderStatus(early.orderId, "entregue");
+                setEarly(null);
+              }}
+            >
+              Entregar mesmo assim
+            </button>
           </div>
         </Modal>
       )}

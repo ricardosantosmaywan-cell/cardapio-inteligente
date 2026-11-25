@@ -6,12 +6,14 @@ import { getRole, Role, setRole, useDB } from "@/lib/store";
 import { getSupabase, REMOTE } from "@/lib/supabase";
 import { useLoja } from "@/components/loja";
 import { BotaoSenha, SenhaObrigatoria } from "@/components/senha";
-import { ChefHat, ChevronLeft, LayoutGrid, LogOut, Menu as MenuIcon, PackageX, X, type LucideIcon } from "lucide-react";
-import { initials } from "@/lib/utils";
+import { ChefHat, ChevronLeft, CookingPot, LayoutGrid, LogOut, Menu as MenuIcon, PackageX, X, type LucideIcon } from "lucide-react";
+import { initials, kitchenCfg } from "@/lib/utils";
 
-const NAV_ICON: Record<string, LucideIcon> = { mesas: LayoutGrid, faltas: PackageX, garcom: ChefHat };
+const NAV_ICON: Record<string, LucideIcon> = { mesas: LayoutGrid, faltas: PackageX, garcom: ChefHat, cozinha: CookingPot };
 
-const ROLE_LABEL: Record<Role | "admin", string> = { garcom: "Garçom", dono: "Dono", admin: "Administrador" };
+const ROLE_LABEL: Record<Role | "admin", string> = { garcom: "Garçom", dono: "Dono", cozinha: "Cozinha", admin: "Administrador" };
+
+const LOGIN_TITLE: Record<Role, string> = { garcom: "Entrar como garçom", dono: "Entrar como dono", cozinha: "Entrar na cozinha" };
 
 /** Topo das telas de login: "Voltar", logotipo e nome da loja. */
 function LoginTop({ base }: { base: string }) {
@@ -82,7 +84,7 @@ function RealLogin({ area, base }: { area: Role; base: string }) {
   return (
     <div className="screen-center">
       <LoginTop base={base} />
-      <h1 className="center">Entrar como {ROLE_LABEL[area].toLowerCase()}</h1>
+      <h1 className="center">{LOGIN_TITLE[area]}</h1>
       <form className="stack" onSubmit={submit}>
         <div className="field">
           <label htmlFor="em">E-mail<span className="req"> *</span></label>
@@ -105,7 +107,7 @@ function SimulatedLogin({ area, base, onEnter }: { area: Role; base: string; onE
   return (
     <div className="screen-center">
       <LoginTop base={base} />
-      <h1 className="center">Entrar como {ROLE_LABEL[area].toLowerCase()}</h1>
+      <h1 className="center">{LOGIN_TITLE[area]}</h1>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -195,7 +197,15 @@ export function RoleGate({
   }
 
   // Na área do garçom, o dono (e o administrador) ganha um atalho para o painel de gestão; o garçom não o vê
-  const navFinal = area === "garcom" && (role === "dono" || role === "admin") ? [...nav, { href: "/dono", label: "Painel do dono ↗" }] : nav;
+  const chefe = role === "dono" || role === "admin";
+  const cozinhaOn = kitchenCfg(db).enabled;
+  const navFinal = [
+    ...nav,
+    ...(area === "garcom" && cozinhaOn ? [{ href: "/cozinha", label: "Cozinha", icon: "cozinha" }] : []),
+    ...(area === "garcom" && chefe ? [{ href: "/dono", label: "Painel do dono ↗" }] : []),
+    ...(area === "dono" && cozinhaOn ? [{ href: "/cozinha", label: "Cozinha ↗" }] : []),
+    ...(area === "cozinha" && role !== "cozinha" ? [{ href: "/garcom", label: "Mesas ↗" }] : []),
+  ];
   const prefixed = navFinal.map((n) => ({ ...n, href: `${base}${n.href}` }));
   const isOn = (href: string) => path === href || (href === `${base}/garcom` && path.startsWith(`${base}/garcom/mesa`));
 
